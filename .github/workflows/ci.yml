@@ -47,6 +47,12 @@ jobs:
           # introduced and then reverted still findable.
           fetch-depth: 0
 
+      - name: private notes stay local
+        # The repo is public. HANDOFF.md, NICK-TODO.md and docs/audits/*.md quote
+        # Nick's real messages and calendar; they are gitignored. Fails loudly if
+        # a merge or `add -f` brings one back.
+        run: sh scripts/check-private-files.sh --fail HEAD
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

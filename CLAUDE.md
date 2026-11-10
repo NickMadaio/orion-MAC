@@ -48,8 +48,8 @@ findings that are still worth reading, are in
 
 ## Read these, in order
 
-1. `HANDOFF.md`
-2. `NICK-TODO.md`
+1. `HANDOFF.md` (local-only since 2026-11-10, gitignored, not in a fresh clone)
+2. `NICK-TODO.md` (local-only, same reason)
 3. `docs/planning/v2/HANDOFF.md`
 4. `docs/planning/v2/PHASE_32_5_CAPABILITY_CHARTER.md`
 5. `docs/planning/v2/ROADMAP_AMENDMENTS.json`

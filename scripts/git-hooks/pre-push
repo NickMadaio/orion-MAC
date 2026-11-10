@@ -1,0 +1,18 @@
+#!/bin/sh
+# Refuse to publish private working notes. The repo is public; these files quote
+# Nick's real messages, timetable and sleep. Not installed automatically.
+# Install (once; .git/hooks is shared by every worktree of this repo):
+#   cp scripts/git-hooks/pre-push "$(git rev-parse --git-common-dir)/hooks/pre-push"
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  hits=$(sh scripts/check-private-files.sh "$local_sha")
+  if [ -n "$hits" ]; then
+    echo "pre-push: refusing to push $local_ref -> $remote_ref; its tree contains private files:" >&2
+    echo "$hits" | sed 's/^/  /' >&2
+    echo "Fix: git rm --cached <file> (keep it locally), commit, push again. See AGENTS.md traps." >&2
+    status=1
+  fi
+done
+exit $status

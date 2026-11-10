@@ -54,3 +54,12 @@ DerivedData/
 
 # Personal knowledge vault (Obsidian) — lives locally, not in the repo
 var/brain/
+
+# Private working notes. This repo is public and linked from Nick's resume, and these
+# files quote his real messages, class timetable, sleep and calendar. They stay on
+# this Mac (the relay still reads them locally) but are never published.
+# Untracked on 2026-11-10; CI step "private notes stay local" fails if one comes back.
+/HANDOFF.md
+/NICK-TODO.md
+/docs/audits/*
+!/docs/audits/README.md

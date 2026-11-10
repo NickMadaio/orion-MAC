@@ -160,7 +160,18 @@ def main() -> int:
             notes.append("NOTE: this cannot verify the reviewer was independent. Only a person can.")
 
     # 14 — documentation.
-    if (source or scripts) and "HANDOFF.md" not in files:
+    # Since 2026-11-10 HANDOFF.md is local-only (gitignored: the repo is public and
+    # the log quotes Nick's real messages and calendar), so no commit range can
+    # contain it. Say so instead of failing every run on a file git cannot see.
+    handoff_tracked = bool(
+        subprocess.run(
+            ["git", "-C", str(REPO), "ls-files", "--", "HANDOFF.md"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+    )
+    if not handoff_tracked:
+        notes.append("HANDOFF.md is local-only (gitignored); step 14 is not checkable from git")
+    elif (source or scripts) and "HANDOFF.md" not in files:
         failures.append("source or scripts changed and HANDOFF.md did not (step 14)")
     else:
         notes.append("HANDOFF.md moved with the change")
