@@ -111,6 +111,14 @@ final class FocusExtrasCoordinator {
     /// Main-thread only: what `apply` last saw.
     private var sessionIsLive = false
 
+    /// Turning the camera switch off must stop the lens NOW, not at the end of
+    /// the session. Before 2026-11-13 the switch only wrote the preference, so
+    /// a session already sampling kept doing so until it ended, and "off"
+    /// looked like it did nothing. Turning it ON still waits for the next
+    /// session: opening a camera mid-session nobody asked to be watched in is
+    /// the wrong direction to be eager in.
+    private var cameraSwitch: AnyCancellable?
+
     /// Focus on/off on its own serial queue: never main, and never behind the
     /// distraction review's model call on `work`. Any attempted "on" is undone.
     private lazy var focusSwitch = SessionFocusSwitch(
@@ -143,6 +151,17 @@ final class FocusExtrasCoordinator {
         music.onLog = { [weak self] in self?.onLog?($0) }
         camera.onLog = { [weak self] in self?.onLog?($0) }
         distractions.onLog = { [weak self] in self?.onLog?($0) }
+        cameraSwitch = extras.$cameraPresence
+            .dropFirst()
+            .removeDuplicates()
+            .filter { !$0 }
+            .sink { [weak self] _ in self?.stopCameraNow() }
+    }
+
+    private func stopCameraNow() {
+        guard camera.isEnabled else { return }
+        camera.setEnabled(false)
+        onLog?("[presence] stopped — switched off in Settings")
     }
 
     /// Called on every session change.
