@@ -1,0 +1,2 @@
+{"date":"2026-11-16","kind":"replay","commit":"f75b3b4","dirty":true,"cases":83,"pass":81,"fail":0,"xfail":1,"xpass":0,"skip":1,"durationMs":837,"failing":[],"note":""}
+{"date":"2026-11-16","kind":"parser","commit":"f75b3b4","dirty":true,"exact":83.6,"writeWrong":7.8,"clarify":12.3,"p50Ms":1500,"note":"heldout, 9B, branch w20/parser, measured 2026-11-05"}
