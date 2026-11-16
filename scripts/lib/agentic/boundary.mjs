@@ -64,6 +64,12 @@ export const RUNTIME_PROTECTED_SURFACES = Object.freeze([
   // could edit it could change what "enable" means.
   { pattern: /^scripts\/orion-projects$/, reason: 'the local project library and launch control' },
   { pattern: /^scripts\/orion-agent$/, reason: 'the supervisor entrypoint' },
+  // The jobs lane (2026-11-16). Job definitions run as code inside the runner, and the
+  // runner is what checks an owner approval before an outward step, so a worker that
+  // could edit either could change what "approved" means.
+  { pattern: /^scripts\/lib\/jobs\//, reason: 'the jobs-lane runner, which enforces owner approval before outward steps' },
+  { pattern: /^scripts\/jobs\//, reason: 'job definitions, which run as code inside the jobs-lane runner' },
+  { pattern: /^scripts\/orion-jobs$/, reason: 'the jobs-lane CLI' },
   { pattern: /^docs\/agentic\//, reason: 'the mission and architecture that define what this system is for' },
   { pattern: /^scripts\/lib\/orion-selfdev-policy\.mjs$/, reason: "the legacy coder's window onto the self-change policy" },
   { pattern: /^\.git\//, reason: 'git internals — history is not an implementation detail an agent may edit' },

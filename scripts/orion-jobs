@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+/*
+ orion-jobs: the background jobs lane.
+
+   orion-jobs list
+   orion-jobs start <job> [--input k=v ...]
+   orion-jobs status [<run>] [--json]
+   orion-jobs resume <run>
+   orion-jobs stop <run>
+
+ There is no approve verb. A job that needs the owner stops and prints an
+ approval id; Nick answers with `orion-approve <id>`, which ORION cannot run,
+ and `resume` continues only if that grant verifies against the exact content.
+ Exit codes: 0 done/ok, 3 waiting for approval, 1 failed or error, 2 usage.
+*/
+import { cmdList, cmdResume, cmdStart, cmdStatus, cmdStop, defaultDeps, describeRun, parseInputs } from './lib/jobs/commands.mjs';
+
+const argv = process.argv.slice(2);
+const json = argv.includes('--json');
+const inputs = [];
+const rest = [];
+for (let i = 0; i < argv.length; i += 1) {
+  if (argv[i] === '--json') continue;
+  if (argv[i] === '--input') { inputs.push(argv[i + 1] ?? ''); i += 1; continue; }
+  rest.push(argv[i]);
+}
+const [verb, target] = rest;
+const out = text => process.stdout.write(`${text}\n`);
+const fail = (text, code = 1) => { process.stderr.write(`orion-jobs: ${text}\n`); process.exit(code); };
+const need = what => { if (!target) fail(`${verb} needs ${what}`, 2); };
+
+function report(state) {
+  out(json ? JSON.stringify(state, null, 2) : describeRun(state));
+  return { done: 0, waiting_approval: 3 }[state.status] ?? 1;
+}
+
+try {
+  if (verb === 'list') {
+    const jobs = await cmdList();
+    out(json ? JSON.stringify(jobs, null, 2) : jobs.map(j => `${j.name}  ${j.steps.join(' > ')}\n  ${j.description}`).join('\n') || 'no jobs');
+  } else if (verb === 'start') {
+    need('a job name');
+    process.exit(report(await cmdStart({ jobName: target, input: parseInputs(inputs), deps: defaultDeps() })));
+  } else if (verb === 'resume') {
+    need('a run id');
+    process.exit(report(await cmdResume({ runId: target, deps: defaultDeps() })));
+  } else if (verb === 'stop') {
+    need('a run id');
+    report(await cmdStop({ runId: target }));
+    process.exit(0);
+  } else if (verb === 'status') {
+    const result = await cmdStatus({ runId: target });
+    out(json ? JSON.stringify(result, null, 2)
+      : Array.isArray(result) ? (result.map(describeRun).join('\n\n') || 'no runs') : describeRun(result));
+  } else {
+    fail('usage: orion-jobs list | start <job> [--input k=v] | status [<run>] [--json] | resume <run> | stop <run>', 2);
+  }
+} catch (error) {
+  fail(error.message);
+}
