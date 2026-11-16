@@ -20,7 +20,8 @@ export function needsReasoning(text) {
 
 /** `model` null = no model picked in the app (the usual case). Times are epoch ms. */
 export function thinkingLevel({ text, model = null, boostedUntil = null, now }) {
-  if (typeof model === "string" && model.startsWith("ollama/")) return "off";
+  // 2026-11-16, same as the Swift source: no model named means the local primary, which only takes "off".
+  if (typeof model !== "string" || !model || model.startsWith("ollama/")) return "off";
   if (boostedUntil !== null && boostedUntil !== undefined && boostedUntil > now) return "low";
   return needsReasoning(text) ? "low" : "off";
 }

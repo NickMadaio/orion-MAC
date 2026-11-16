@@ -16,7 +16,7 @@
     {
       "name" : "ask-window-90min",
       "prefixes" : [
-        "[ORION context: 75 min ago you asked \"Where were you?\" (blank ask about 13:00-14:00). If he says what he did or is doing, log it.]\n"
+        "[ORION context: 75 min ago you asked \"Where were you?\" (blank ask about 13:00-14:00), askId a. If he says what he did or is doing, log it.]\n"
       ]
     },
     {
@@ -29,7 +29,7 @@
     {
       "name" : "reply-to-ask",
       "prefixes" : [
-        "[ORION context: 75 min ago you asked \"Did you start finish resume?\" (finish resume, planned 14:00-now, not started, he is at Library). If he says what he did or is doing, log it.]\n"
+        "[ORION context: 75 min ago you asked \"Did you start finish resume?\" (finish resume, planned 14:00-now, not started, he is at Library), askId a2. If he says what he did or is doing, log it.]\n"
       ]
     },
     {
@@ -41,7 +41,7 @@
     {
       "name" : "reply-to-voice-repeat",
       "prefixes" : [
-        "[ORION context: 30 min ago you asked \"Did you hear me?\" (a spoken question he may not have heard). If he says what he did or is doing, log it.]\n"
+        "[ORION context: 30 min ago you asked \"Did you hear me?\" (a spoken question he may not have heard), askId a3. If he says what he did or is doing, log it.]\n"
       ]
     },
     {
@@ -171,22 +171,22 @@
       "needsReasoning" : false
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "narrative",
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "whole-day",
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "two-verbs",
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "verb-anchor",
       "needsReasoning" : true
     },
@@ -196,7 +196,7 @@
       "needsReasoning" : false
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "long-35-words",
       "needsReasoning" : true
     },
@@ -206,7 +206,7 @@
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "boosted",
       "needsReasoning" : false
     },
@@ -226,17 +226,17 @@
       "needsReasoning" : false
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "multiline-wholeday",
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "full-request",
       "needsReasoning" : true
     },
     {
-      "level" : "low",
+      "level" : "off",
       "name" : "unicode-case",
       "needsReasoning" : true
     }

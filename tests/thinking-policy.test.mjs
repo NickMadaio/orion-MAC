@@ -9,12 +9,14 @@ test("talk and one-step commands don't think (2026-10-07)", () => {
   }
 });
 
-test("multi-part changes, anchors and whole days think", () => {
+test("multi-part changes, anchors and whole days think, only on a named non-local model", () => {
   for (const text of ["can you start organize safari directly after CS lab, same end conditions",
     "get rid of send internship applications and push study back half an hour",
     "plan my day from my to-do list", "move study to after dinner", "after class i'm gonna nap so i'm up by 1:30, then do the cs lab",
     "i didnt go to marketing so delete that. ive been working on orion for the past hour, and will be continuing for another 30, schedule that in"]) {
-    assert.equal(thinkingLevel(text), "low", text);
+    assert.equal(thinkingLevel(text, { model: "other/remote-model" }), "low", text);
+    // 2026-11-16: no model named means the local primary, and the gateway rejects "low" for it.
+    assert.equal(thinkingLevel(text), "off", text);
   }
   assert.equal(thinkingLevel("plan my day", { model: "ollama/qwen3.5:9b" }), "off");
 });

@@ -20,7 +20,11 @@ export function needsReasoning(text) {
   return said.split(/\s+/).filter(Boolean).length >= 35;
 }
 
+// 2026-11-16: with no model named, the turn runs on the configured primary, which is
+// local (qwen3.5:9b, reasoning off). The gateway rejects any other level for it
+// ("Thinking level low is not supported"), so only a named non-local model can think.
 export function thinkingLevel(text, { model } = {}) {
-  if (String(model ?? "").startsWith("ollama/")) return "off";
+  const named = String(model ?? "");
+  if (!named || named.startsWith("ollama/")) return "off";
   return needsReasoning(text) ? "low" : "off";
 }

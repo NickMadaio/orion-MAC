@@ -73,7 +73,9 @@ function describe(ask) {
 export function outreachLabel(row, now) {
   const minutes = Math.max(0, Math.trunc((now - row.at) / 1000 / 60));
   if (!row.ask) return `[ORION context: you messaged him first, ${minutes} min ago: "${gprefix(row.text, 200)}". This message MAY be his answer.]\n`;
-  return `[ORION context: ${minutes} min ago you asked "${gprefix(row.text, 200)}" (${describe(row.ask)}). If he says what he did or is doing, log it.]\n`;
+  // The ask's id rides along, as in OutreachContext.swift (W16-d): the plugin binds the answer to it.
+  const askId = typeof row.ask?.askId === "string" && /^[A-Za-z0-9._:-]{1,80}$/.test(row.ask.askId) ? `, askId ${row.ask.askId}` : "";
+  return `[ORION context: ${minutes} min ago you asked "${gprefix(row.text, 200)}" (${describe(row.ask)})${askId}. If he says what he did or is doing, log it.]\n`;
 }
 
 // Swift max(by: <) keeps the FIRST of equal elements.

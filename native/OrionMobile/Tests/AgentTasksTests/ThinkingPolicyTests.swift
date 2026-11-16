@@ -18,7 +18,9 @@ final class ThinkingPolicyTests: XCTestCase {
     func test_multi_part_changes_think() {
         for text in ["can you start organize safari directly after CS lab, same end conditions",
                      "get rid of send internship applications and push study back half an hour", "plan my day from my to-do list"] {
-            XCTAssertEqual(ThinkingPolicy.level(for: text, model: nil, boostedUntil: nil, now: now), "low", text)
+            XCTAssertEqual(ThinkingPolicy.level(for: text, model: "other/remote-model", boostedUntil: nil, now: now), "low", text)
+            // 2026-11-16: no model named means the local primary; the gateway rejects "low" for it.
+            XCTAssertEqual(ThinkingPolicy.level(for: text, model: nil, boostedUntil: nil, now: now), "off", text)
         }
     }
 
@@ -28,8 +30,9 @@ final class ThinkingPolicyTests: XCTestCase {
 
     func test_a_struggle_keeps_thinking_on_for_a_while() {
         let until = now.addingTimeInterval(ThinkingPolicy.boostSeconds)
-        XCTAssertEqual(ThinkingPolicy.level(for: "ok thanks", model: nil, boostedUntil: until, now: now), "low")
-        XCTAssertEqual(ThinkingPolicy.level(for: "ok thanks", model: nil, boostedUntil: until, now: until.addingTimeInterval(1)), "off")
+        XCTAssertEqual(ThinkingPolicy.level(for: "ok thanks", model: "other/remote-model", boostedUntil: until, now: now), "low")
+        XCTAssertEqual(ThinkingPolicy.level(for: "ok thanks", model: "other/remote-model", boostedUntil: until, now: until.addingTimeInterval(1)), "off")
+        XCTAssertEqual(ThinkingPolicy.level(for: "ok thanks", model: nil, boostedUntil: until, now: now), "off")
     }
 
     func test_two_failed_tool_calls_in_the_turn_is_a_struggle() {

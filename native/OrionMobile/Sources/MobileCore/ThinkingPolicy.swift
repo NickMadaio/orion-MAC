@@ -43,7 +43,10 @@ public enum ThinkingPolicy {
     }
 
     public static func level(for text: String, model: String?, boostedUntil: Date?, now: Date = Date()) -> String {
-        if model?.hasPrefix("ollama/") == true { return "off" }
+        // 2026-11-16: no model named means the configured primary, which is local
+        // (reasoning off). The gateway rejects any level but "off" for it, so only a
+        // named non-local model can think. Same rule as scripts/lib/thinking-policy.mjs.
+        guard let model, !model.hasPrefix("ollama/") else { return "off" }
         if let boostedUntil, boostedUntil > now { return "low" }
         return needsReasoning(text) ? "low" : "off"
     }
