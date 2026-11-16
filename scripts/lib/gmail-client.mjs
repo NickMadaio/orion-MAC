@@ -13,7 +13,8 @@
 
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { GMAIL_EXPIRED, classifyGmailError } from "./gmail-status.mjs";
+import { GMAIL_EXPIRED } from "./gmail-status.mjs";
+import { isSignInProblem } from "./mail/failures.mjs";
 
 const ACCOUNT = "nmadaio08@gmail.com";
 
@@ -56,6 +57,15 @@ async function keyringEnvironment(orionRoot) {
   };
 }
 
+/**
+ * PATH with Homebrew's directories added at the END (his own entries still win). The Mac app starts the watches from a GUI/launchd
+ * environment whose PATH is /usr/bin:/bin:..., so `gog` (in /opt/homebrew/bin) was "spawn gog ENOENT" on every poll: the 301 "error" failures.
+ */
+export function withToolPath(path) {
+  const have = String(path ?? "").split(":").filter(Boolean);
+  return [...have, ...["/opt/homebrew/bin", "/usr/local/bin", ...(have.length ? [] : ["/usr/bin", "/bin"])].filter((d) => !have.includes(d))].join(":");
+}
+
 /** How long one gog call may take. A hung OAuth refresh once held the mail watcher's tick forever (wave 14 review). */
 export const GOG_TIMEOUT_MS = 20_000;
 
@@ -74,7 +84,8 @@ function killGroup(child) {
  * rejects with one plain sentence), { env } extra environment (tests).
  */
 export async function gog(orionRoot, args, { timeoutMs = GOG_TIMEOUT_MS, env = {}, account = ACCOUNT } = {}) {
-  const environment = { ...(await keyringEnvironment(orionRoot)), ...env };
+  const base = { ...(await keyringEnvironment(orionRoot)), ...env };
+  const environment = { ...base, PATH: withToolPath(base.PATH) };
   const argv = [...args, "--account", account, ...SAFETY_FLAGS, "--json"];
 
   const stdout = await new Promise((resolve, reject) => {
@@ -105,7 +116,7 @@ export async function gog(orionRoot, args, { timeoutMs = GOG_TIMEOUT_MS, env = {
       if (code === 0) resolve(out);
       // Pass gog's own words through. "Report its actual error, never claim
       // setup is missing" is a standing rule, and it needs the actual error.
-      else reject(new Error(classifyGmailError(err) === "expired" ? GMAIL_EXPIRED : err.trim() || `gog exited ${code}`));
+      else reject(new Error(isSignInProblem(err) ? GMAIL_EXPIRED : err.trim() || `gog exited ${code}`));
     });
   });
 

@@ -9,8 +9,11 @@
 // An expired sign-in is told once a day per account ("Gmail needs reconnecting", "Yahoo needs an app password"); a network failure is not told at all.
 // Several accounts (wave 17, mail-accounts.json): each is polled and backed off on its own, mail from all of them goes through the one pipeline.
 // Every outside thing is a dependency, so tests run it with a fake inbox, a fake model and a recording reach.
+import { readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { localDate } from "../life/live-day.mjs";
-import { classifyGmailError } from "../gmail-status.mjs";
+import { addFailure, failureKind } from "./failures.mjs";
 import { appendLines, mailFile, readSeen, readState, writeState } from "./files.mjs";
 import { readJson } from "../awareness/io.mjs";
 import { emptyPrefs } from "./prefs.mjs";
@@ -21,7 +24,9 @@ import { isSensitive, redactSensitive } from "./sensitive.mjs";
 export const POLL_EVERY_MS = 10 * 60_000;
 /** After failed polls the wait doubles (10, 20, 40 min), up to an hour, so a hanging or broken gog is not retried every tick. */
 export const MAX_BACKOFF_MS = 60 * 60_000;
-export const pollWaitMs = (failures = 0) => Math.min(POLL_EVERY_MS * 2 ** Math.max(0, (failures | 0) - 1), MAX_BACKOFF_MS);
+/** Signed out: nothing changes until he runs `gog auth add`, so asking every hour only grows the counter. Still checked, so it notices he fixed it. */
+export const EXPIRED_WAIT_MS = 6 * 60 * 60_000;
+export const pollWaitMs = (failures = 0, problem = null) => problem === "expired" && failures > 0 ? EXPIRED_WAIT_MS : Math.min(POLL_EVERY_MS * 2 ** Math.max(0, (failures | 0) - 1), MAX_BACKOFF_MS);
 /** Below the important band but this close: kept when the model has no opinion. */
 const FALLBACK_KEEP_AT = 3;
 /** Model calls per poll: 4 x the 15 s timeout stays well inside orion-watches' 2-minute budget for this tick. */
@@ -49,19 +54,26 @@ export const PRIMARY_ID = "gmail";
 const sliceOf = (state, id) => id === PRIMARY_ID ? state : state.accounts?.[id] ?? {};
 const patchSlice = (state, id, patch) => id === PRIMARY_ID ? { ...state, ...patch } : { ...state, accounts: { ...state.accounts, [id]: { ...(state.accounts?.[id] ?? {}), ...patch } } };
 const keyPrefix = (id) => id === PRIMARY_ID ? "" : `${id}:`;
-const dueIn = (state, account, now, force) => { const s = sliceOf(state, account.id); return force || !s.lastPollAt || now.getTime() - Date.parse(s.lastPollAt) >= pollWaitMs(s.failures); };
-
-/** "expired" for a sign-in that needs Nick (an app password counts), else gmail-status's classes (a network failure is "unreachable"). */
-function failureKind(account, text) {
-  if (account.kind === "imap" && /app password|sign-in refused|authentication failed|keychain/i.test(text) && classifyGmailError(text) !== "unreachable") return "expired";
-  return classifyGmailError(text);
+/** Where gog keeps its sign-in tokens (file keyring). `gog auth add` writes one there, so a newer file than the last poll means he signed back in. */
+export const GOG_KEYRING_DIR = join(homedir(), "Library/Application Support/gogcli/keyring");
+/** One local directory listing, no network and no gog process: has anything in the keyring changed since `sinceMs`? */
+export function keyringChangedSince(sinceMs, dir = GOG_KEYRING_DIR) {
+  try { return readdirSync(dir).some((f) => statSync(join(dir, f)).mtimeMs > sinceMs); } catch { return false; }
 }
+const dueIn = (state, account, now, force, recovered = () => false) => {
+  const s = sliceOf(state, account.id);
+  if (force || !s.lastPollAt) return true;
+  const last = Date.parse(s.lastPollAt);
+  if (now.getTime() - last >= pollWaitMs(s.failures, s.problem)) return true;
+  // Signed out and waiting hours: a new token since the last poll means he fixed it, so ask now rather than up to 6 h later.
+  return account.kind === "gmail" && s.problem === "expired" && recovered(last);
+};
 
 /** Told once a day per account, and only for a sign-in that needs him. */
-async function reportFailure(account, error, { state, today, reach }) {
+async function reportFailure(account, error, { state, today, reach, now }) {
   const kind = failureKind(account, error instanceof Error ? error.message : String(error));
   const s = sliceOf(state, account.id);
-  const base = patchSlice(state, account.id, { problem: kind, failures: (s.failures ?? 0) + 1 });
+  const base = patchSlice(state, account.id, { problem: kind, failures: (s.failures ?? 0) + 1, history: addFailure(s.history, { at: now.toISOString(), kind, error }) });
   if (kind !== "expired" || s.expiredAlertedOn === today) return { state: base, said: null, kind };
   const text = account.reconnectText ?? RECONNECT_TEXT;
   const sent = await reach(text, { why: `mail: reconnect ${account.id}`, urgent: false });
@@ -77,14 +89,14 @@ const tag = (item, account, multi) => ({ ...item, key: `${keyPrefix(account.id)}
  * @returns {{ polled: boolean, reason?: string, fresh?: number, said?: string|null, verdicts?: object[] }}
  */
 export async function mailTick(deps) {
-  const { dir, now, sandboxed = false, ctx = {}, fetchInbox, askModel = null, reach, force = false } = deps;
+  const { dir, now, sandboxed = false, ctx = {}, fetchInbox, askModel = null, reach, force = false, keyringDir = GOG_KEYRING_DIR } = deps;
   const accounts = deps.accounts ?? [{ id: PRIMARY_ID, label: "Gmail", kind: "gmail", fetchInbox }];
   const multi = accounts.length > 1;
   const files = { seen: mailFile(dir, "seen", { sandboxed }), state: mailFile(dir, "state", { sandboxed }), prefs: mailFile(dir, "prefs", { sandboxed }), alerts: mailFile(dir, "alerts", { sandboxed }) };
   const state = readState(files.state);
   if (!accounts.length) return { polled: false, reason: "no mailboxes configured (orion-mail-accounts add-gmail or add-imap)" };
-  const due = accounts.filter((a) => dueIn(state, a, now, force));
-  if (!due.length) return { polled: false, reason: `polled under ${Math.round(pollWaitMs(sliceOf(state, accounts[0]?.id).failures) / 60_000)} min ago` };
+  const due = accounts.filter((a) => dueIn(state, a, now, force, (since) => keyringChangedSince(since, keyringDir)));
+  if (!due.length) return { polled: false, reason: `polled under ${Math.round(pollWaitMs(sliceOf(state, accounts[0]?.id).failures, sliceOf(state, accounts[0]?.id).problem) / 60_000)} min ago` };
   const today = localDate(now);
   const seen = readSeen(files.seen);
   // Claimed before any fetch runs: if this process is killed mid-fetch (orion-watches' budget), the next tick still waits.
@@ -101,7 +113,7 @@ export async function mailTick(deps) {
   let failureSaid = null;
   const failed = [];
   for (const r of results.filter((x) => x.error)) {
-    const out = await reportFailure(r.a, r.error, { state: polledState, today, reach });
+    const out = await reportFailure(r.a, r.error, { state: polledState, today, reach, now });
     polledState = out.state; failureSaid = failureSaid ?? out.said; failed.push({ a: r.a, kind: out.kind });
   }
   const worked = results.filter((r) => !r.error);
