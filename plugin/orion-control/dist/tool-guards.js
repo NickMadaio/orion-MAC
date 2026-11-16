@@ -18,6 +18,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ACTION_CATALOG } from "./catalog.js";
+import { validateExecArgs } from "./exec-arg-validator.js";
 import { OPERATOR_REASON, TYPED_ACTIONS } from "./exec-routing.js";
 import { hasShellOperator } from "./shell-operators.js";
 import { TASK_RUN_ID } from "./task-run-wiring.js";
@@ -135,6 +136,10 @@ function guardExec(toolName, params, deps) {
     if (!key)
         return undefined;
     const trimmed = params[key].trim();
+    // The host matches the executable name only. Refuse allowlisted tools used as launchers (fd -x, rg --pre, ...) and any mention of orion-approve.
+    const unsafe = validateExecArgs(trimmed);
+    if (unsafe)
+        return block(unsafe);
     const own = ownForget(trimmed);
     if (own)
         return { params: { ...params, [key]: own } };
@@ -205,6 +210,19 @@ function guardToolCallWrapper(params, deps) {
     if (id === "")
         return undefined;
     const args = parseArgs(params.args);
+    // Defence in depth: the host hook-wraps catalogued tools, so an inner exec normally reaches guardExec under its own name.
+    // If exec is ever dispatched through tool_call, the same checks run on its command (flat or in args); unparseable args fail closed.
+    if (/(^|:)(exec|shell|bash)$/.test(id)) {
+        if (args === "bad")
+            return block(`args for ${id} must be a JSON object, for example {"command":"ls"}.`);
+        const inner = typeof args?.command === "string" ? args.command : typeof params.command === "string" ? params.command : undefined;
+        if (inner === undefined)
+            return undefined;
+        const unsafe = validateExecArgs(inner);
+        if (unsafe)
+            return block(unsafe);
+        return undefined;
+    }
     const catalog = Object.prototype.hasOwnProperty.call(ACTION_CATALOG, id) || TYPED_ACTIONS.test(id);
     if (catalog) {
         if (args === "bad")
