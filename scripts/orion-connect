@@ -23,6 +23,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gmailStatus } from "./lib/gmail-status.mjs";
 import { validateSpec, buildRequest, keepFields } from "./lib/connect/spec.mjs";
+import { hostDecision, hostSettings, shadowedSettings, migrateAllowances, allowancesAfterCreate } from "./lib/connect/host-pin.mjs";
+import { checkOwnerCaller } from "./lib/approve-caller.mjs";
 import { canvasCourseSnapshot, canvasRead } from "./lib/connect/canvas.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -31,6 +33,8 @@ const DIR = process.env.ORION_CONNECTORS_DIR || join(HOME, ".openclaw/orion-conn
 const BUILTIN = join(HERE, "connectors");
 const SETTINGS = join(DIR, "settings.json");
 const WRITES = join(DIR, "writes-allowed.json");
+const HOSTS = join(DIR, "hosts-allowed.json");
+const ownerCaller = () => checkOwnerCaller();
 const CONTROLLED = join(HOME, ".openclaw/orion-controlled");
 const [command, ...rest] = process.argv.slice(2);
 const readJSON = (file, fallback) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return fallback; } };
@@ -40,7 +44,7 @@ function specs() {
   const out = new Map();
   for (const dir of [BUILTIN, DIR]) {
     if (!existsSync(dir)) continue;
-    for (const file of readdirSync(dir).filter((f) => f.endsWith(".json") && !["settings.json", "writes-allowed.json"].includes(f))) {
+    for (const file of readdirSync(dir).filter((f) => f.endsWith(".json") && !["settings.json", "writes-allowed.json", "hosts-allowed.json"].includes(f))) {
       const spec = readJSON(join(dir, file), null);
       if (spec?.name) out.set(spec.name, { ...spec, builtin: dir === BUILTIN });
     }
@@ -102,6 +106,16 @@ async function systemStatus() {
   rows.push(["Weather, web search, web pages", "working (no account needed)"]);
   return rows;
 }
+
+// Host allowances are (host, Keychain item) pairs. A file from before pairs is
+// migrated on first read, bound to each spec as it is now (lib/connect/host-pin.mjs).
+function allowances() {
+  if (!existsSync(HOSTS)) return {};
+  const { next, changed } = migrateAllowances(readJSON(HOSTS, {}), specs());
+  if (changed) writeFileSync(HOSTS, JSON.stringify(next, null, 2), { mode: 0o600 });
+  return next;
+}
+allowances();
 
 if (!command || command === "help") fail(readFileSync(fileURLToPath(import.meta.url), "utf8").split("*/")[0].replace(/^[\s\S]*?\/\*/, "").trim(), 0);
 
@@ -165,6 +179,11 @@ if (command === "set") {
   const [key, ...value] = String(pair ?? "").split("=");
   if (!spec.settings?.[key]) fail(`${name} has no setting ${key} (it has: ${Object.keys(spec.settings ?? {}).join(", ") || "none"})`);
   if (/token|secret|key|password/i.test(key)) fail("Secrets go in the Keychain, not settings.");
+  // The setting that chooses the host decides where the connector's secret is sent: that is Nick's to set, not ORION's.
+  if (hostSettings(spec).includes(key)) {
+    const caller = ownerCaller();
+    if (!caller.allow) fail(`${name}: ${key} chooses the host the key is sent to, so only Nick sets it. He runs: orion-connect set ${name} ${key}=<value> in a terminal. (${caller.reason.replace(/^orion-approve is the owner's yes and cannot be run by ORION: /, "").split(". ")[0]})`, 3);
+  }
   const all = readJSON(SETTINGS, {});
   mkdirSync(DIR, { recursive: true });
   writeFileSync(SETTINGS, JSON.stringify({ ...all, [name]: { ...(all[name] ?? {}), [key]: value.join("=") } }, null, 2), { mode: 0o600 });
@@ -185,8 +204,14 @@ if (command === "create") {
   if (issues.length) fail(`Not created:\n  - ${issues.join("\n  - ")}`);
   mkdirSync(DIR, { recursive: true });
   writeFileSync(join(DIR, `${name}.json`), JSON.stringify({ ...spec, createdAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
+  // A re-created spec keeps an allowance only for the same host AND the same Keychain item.
+  const all = allowances();
+  const kept = allowancesAfterCreate(all[name] ?? [], spec);
+  if ((all[name] ?? []).length !== kept.length) writeFileSync(HOSTS, JSON.stringify({ ...all, [name]: kept }, null, 2), { mode: 0o600 });
+  let host = null; try { host = /\{\{/.test(spec.baseUrl) ? null : new URL(spec.baseUrl).host; } catch {}
   const missing = needs(spec);
   console.log(`Created ${name} (${Object.keys(spec.operations).length} operation(s)).${missing.length ? ` Still needs: ${missing.join("; ")}.` : ""} Test it: orion-connect run ${name} ${Object.keys(spec.operations)[0]} …`);
+  if (!kept.length) console.log(`It will not run until Nick allows its host${spec.auth?.type && spec.auth.type !== "none" ? ` and Keychain item "${spec.auth.keychain}"` : ""}: orion-connect-admin allow-host ${name} ${host ?? "<host>"}`);
   process.exit(0);
 }
 
@@ -231,8 +256,12 @@ if (command === "run") {
   const missing = needs(spec);
   if (missing.length) fail(`${name} is not set up yet. Needs: ${missing.join("; ")}`);
   const params = Object.fromEntries(pairs.map((p) => { const [k, ...v] = p.split("="); return [k, v.join("=")]; }));
+  const shadowed = shadowedSettings(spec, params);
+  if (shadowed.length) fail(`Not run: ${shadowed.join(", ")} is a setting, not a request parameter. Settings are changed by Nick (orion-connect set).`);
   const request = buildRequest(spec, opName, params, readJSON(SETTINGS, {})[name] ?? {});
   if (request.error) fail(`Not run: ${request.error}`);
+  const cleared = hostDecision({ spec, host: request.host, allowed: allowances() });
+  if (!cleared.ok) fail(`Not run: ${cleared.reason}`);
   if (request.write && !(readJSON(WRITES, {})[name] === true)) fail(`${opName} changes data at ${spec.title}. Nick has to allow writes for ${name} first (orion-connect-admin allow-writes ${name}).`);
   const headers = { accept: "application/json", "user-agent": "ORION/1 (personal assistant)" };
   let url = request.url;

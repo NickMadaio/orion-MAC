@@ -55,6 +55,18 @@ import { readAutomationHistory } from "./lib/orion-automation-history.mjs";
 import { summarizeAutomationHistory } from "./lib/orion-automation-history-summary.mjs";
 import { withHistory } from "./lib/orion-automation-history-forecast.mjs";
 
+// install is owner-only (review 2026-11-16): the same caller check as
+// orion-approve, before anything loads. list/show/simulate/schedule-plan read,
+// and remove only turns a job off (orion-incident freeze relies on it).
+if (process.argv[2] === "install") {
+  const { checkOwnerCaller } = await import("./lib/approve-caller.mjs");
+  const caller = checkOwnerCaller();
+  if (!caller.allow) {
+    console.error(`orion-automation: ${caller.reason.replace("orion-approve is the owner's yes", "installing an automation is the owner's act")}`);
+    process.exit(3);
+  }
+}
+
 const run = promisify(execFile);
 const HOME = homedir();
 const ROOT = join(HOME, ".openclaw/orion-controlled/automations");

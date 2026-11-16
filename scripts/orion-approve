@@ -45,7 +45,20 @@
  an authorization check "satisfiable by the name a person would actually type".
 */
 
-import { loadPlugin, PATHS } from "./lib/orion-plugin.mjs";
+import { checkOwnerCaller } from "./lib/approve-caller.mjs";
+
+// Refuse an agent's exec before anything else is read or loaded. The decision
+// is in lib/approve-caller.mjs: env markers, agent ancestry, then positive proof
+// (a verified terminal session, or the installed, signed Orion app as parent).
+{
+  const caller = checkOwnerCaller();
+  if (!caller.allow) {
+    console.error(`orion-approve: ${caller.reason}`);
+    process.exit(3);
+  }
+}
+
+const { loadPlugin, PATHS } = await import("./lib/orion-plugin.mjs");
 
 const plugin = await loadPlugin().catch((error) => {
   console.error(`orion-approve: ${error.message}`);

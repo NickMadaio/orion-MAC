@@ -6,10 +6,21 @@
    orion-connect-admin allow-writes <name>    let <name>'s "write" operations run
    orion-connect-admin revoke-writes <name>
    orion-connect-admin remove <name>          delete a connector ORION built
+   orion-connect-admin allow-host <name> <host>   let <name> contact <host>, with the
+                                              Keychain item its spec names NOW (the pair is
+                                              what is allowed; re-creating the spec drops it)
+   orion-connect-admin revoke-host <name> <host>
 */
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { checkOwnerCaller } from "./lib/approve-caller.mjs";
+import { keychainOf, migrateAllowances } from "./lib/connect/host-pin.mjs";
+// Owner switches: refuse an agent's exec even if this script ever lands on the allowlist.
+{
+  const caller = checkOwnerCaller();
+  if (!caller.allow) { console.error(`orion-connect-admin: ${caller.reason.replace("orion-approve is", "this is")}`); process.exit(3); }
+}
 const DIR = process.env.ORION_CONNECTORS_DIR || join(homedir(), ".openclaw/orion-connectors");
 const WRITES = join(DIR, "writes-allowed.json");
 const [command, name] = process.argv.slice(2);
@@ -18,10 +29,28 @@ mkdirSync(DIR, { recursive: true });
 if (command === "allow-writes" || command === "revoke-writes") {
   writeFileSync(WRITES, JSON.stringify({ ...read(), [name]: command === "allow-writes" }, null, 2), { mode: 0o600 });
   console.log(`${name}: writes ${command === "allow-writes" ? "allowed" : "off"}.`);
+} else if (command === "allow-host" || command === "revoke-host") {
+  const host = String(process.argv[4] ?? "").toLowerCase();
+  if (!name || !/^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/.test(host)) { console.log("usage: orion-connect-admin allow-host|revoke-host <name> <host>"); process.exit(2); }
+  const file = join(DIR, "hosts-allowed.json");
+  const specFile = join(DIR, `${name}.json`);
+  let spec = null; try { spec = JSON.parse(readFileSync(specFile, "utf8")); } catch {}
+  if (command === "allow-host" && !spec) { console.log(`No connector ${name} built by ORION to allow (built-in ones need no allowance).`); process.exit(1); }
+  let all = {}; try { all = JSON.parse(readFileSync(file, "utf8")); } catch {}
+  const saved = new Map();
+  for (const f of readdirSync(DIR).filter((f) => f.endsWith(".json"))) { try { const s = JSON.parse(readFileSync(join(DIR, f), "utf8")); if (s?.name && s.operations) saved.set(s.name, s); } catch {} }
+  all = migrateAllowances(all, saved).next;
+  const keychain = spec ? keychainOf(spec) : null;
+  const others = (all[name] ?? []).filter((e) => e.host !== host);
+  const next = command === "allow-host" ? [...others, { host, keychain, allowedAt: new Date().toISOString() }] : others;
+  writeFileSync(file, JSON.stringify({ ...all, [name]: next }, null, 2), { mode: 0o600 });
+  console.log(command === "allow-host"
+    ? `${name}: ${host} allowed, sending ${keychain === "none" ? "no key" : `the Keychain item "${keychain}"`}. Re-creating ${name} with another host or item drops this.`
+    : `${name}: ${host} removed.`);
 } else if (command === "remove") {
   const file = join(DIR, `${name}.json`);
   if (!existsSync(file)) { console.log(`No connector ${name} built by ORION.`); process.exit(1); }
   rmSync(file); console.log(`${name} removed.`);
 } else {
-  console.log("usage: orion-connect-admin allow-writes|revoke-writes|remove <name>"); process.exit(2);
+  console.log("usage: orion-connect-admin allow-writes|revoke-writes|allow-host|revoke-host|remove <name> [host]"); process.exit(2);
 }

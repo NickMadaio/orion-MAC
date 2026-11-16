@@ -322,6 +322,22 @@ if (duration) {
  panic direction must stay one step.
 */
 if (relaxing) {
+  /*
+   Owner-only, review 2026-11-16: the same caller check as orion-approve (agent
+   markers, agent ancestry, then a verified terminal session) runs before the
+   Touch ID prompt, so an agent exec never even raises it. Output may be piped
+   (orion-incident thaw does), so only stdin must be the terminal. A scratch
+   HOME (the reauth harness) is exempt like the prompt's stand-in, because every
+   file this writes moves with HOME; ORION_OWNER_CHECK=enforce turns it back on
+   there, and can only add the check, never remove it.
+  */
+  const { userInfo } = await import("node:os");
+  const sandboxed = homedir() !== userInfo().homedir;
+  if (!sandboxed || process.env.ORION_OWNER_CHECK === "enforce") {
+    const { checkOwnerCaller } = await import("./lib/approve-caller.mjs");
+    const caller = checkOwnerCaller({ requireStdoutTTY: false });
+    if (!caller.allow) fail(`not changed -- ${caller.reason.replace("orion-approve is the owner's yes", "relaxing the mode is the owner's act")}`, 3);
+  }
   const { reauthenticate } = await import("./lib/orion-reauth.mjs");
   const owner = await reauthenticate(`relax ORION's mode from ${current.mode} to ${requested}`);
   if (!owner.confirmed) fail(`not changed -- relaxing needs the Mac's owner (Touch ID or password): ${owner.reason}`);
