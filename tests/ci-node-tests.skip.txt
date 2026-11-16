@@ -5,3 +5,17 @@
 tests/agentic-awake.test.mjs a spawns a real macOS caffeinate -w process
 tests/agentic-halts.test.mjs d process-kill timing; flaky under load and hangs when sandboxed
 tests/mail-hardening.test.mjs d 400 ms process-group timeout race; failed once under load
+# Passed in a clean-HOME run on the Mac but failed on the real Linux runner (run 43944210289, 2026-11-16):
+# they reach a Mac-only tool or path that the tests do not stub. Class b until each is isolated.
+tests/agentic-projects.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/day-review-actual.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/delivery-release-on-break.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/delivery-senders.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/incident-day-review.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/incident-priority-budget.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/incident-stale-sleep-grace.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/orion-trash.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/proactive-class-ladder.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/proactive-review-fixes.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/r2-proactive.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
+tests/r3-proactive.test.mjs b fails on the Linux runner 2026-11-16; unstubbed Mac dependency
