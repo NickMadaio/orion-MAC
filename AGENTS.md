@@ -444,6 +444,17 @@ such as "say it again", a bare "…", "I couldn't run that lookup", third-person
   turns in the same chat: repeat guard, "undo", pending questions), `outreach` (the line he is replying to), `expect` (route, calls, noCalls,
   asks, replyHas/replyLacks, promptLacks). The M13 turn (phone command delivered late) is Swift (LinkEngine) and is counted as skipped.
 
+## Change discipline (in force from 2026-11-16)
+
+From the 2026-11-16 evaluation (59% of commits since 10-16 were fixes; `local-routing.ts` took 211 commits in 26 days):
+
+- **No new phrase or regex routing rules.** A model miss becomes a replay case (`scripts/eval/replay/cases.json`), and is fixed by a better tool description, schema, example or validator, or by the intent parser. Rules stay for safety replies, exact commands and argument checks.
+- **One change stream at a time on `plugin/orion-control/src`.** No parallel branches merged into the routing code. Work in new files (jobs lane, scripts) may run alongside.
+- **The replay guard gates every plugin change**: `node scripts/orion-replay` must show 0 FAIL, and `scripts/orion-eval-trend run` records the result. A reviewer who did not write the change looks at it before deploy.
+- **`dist/` is regenerated, never hand-merged.** On a conflict, rebuild with `npm run build`. CI fails on a stale dist.
+- **"Fixed" means used live**, not tests plus prose. Say which of tests, text route, voice and real use a fix has been through.
+- **Routing intent goes through the parser track** (branch `w20/parser`), not a second tool surface. Tool descriptions and Tool Search are for the free-form tool use the parser does not cover.
+
 ## Traps that have already bitten, do not reintroduce
 - **A local primary model makes the gateway reject `--thinking low`.** On 2026-11-16 `agents.defaults.model.primary` moved from Haiku to `ollama/qwen3.5:9b` (reasoning off), and every app turn that sent "low" failed with "Thinking level \"low\" is not supported". The thinking policy (scripts/lib/thinking-policy.mjs, MobileCore/ThinkingPolicy.swift, the gate port) now sends "off" unless a non-local model is named. Changing the primary model also needs `docs/planning/v2/model-roles.seed.json` updated, or `orion-deploy` refuses on the contract check. Test any model-config change with the exact flags the apps pass.
 - **This repo is PUBLIC and linked from Nick's resume.** Since 2026-11-10, `HANDOFF.md`, `NICK-TODO.md` and `docs/audits/*.md` (except README) are gitignored and local-only, because they quote his real messages, timetable and sleep. Keep writing them as before, but never `git add -f` them, and never resolve a merge conflict by keeping a deleted copy. CI's first step (`scripts/check-private-files.sh --fail`) fails if one is tracked, and `scripts/git-hooks/pre-push` refuses the push locally once Nick installs it (`cp scripts/git-hooks/pre-push "$(git rev-parse --git-common-dir)/hooks/"`). Either way, the fix is `git rm --cached` on the file, then push again. The same rule applies to any new file holding real conversations or calendar data.
