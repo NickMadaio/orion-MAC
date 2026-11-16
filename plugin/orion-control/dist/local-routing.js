@@ -158,6 +158,10 @@ import { FORM_OPTIONS, NOTHING_REPLY, RESCHEDULE, LATE_NIGHT_UNTIL, meansTomorro
 /** Notes what code read for the worker this turn, once (routing log, 2026-10-16 r8). */
 const markRead = (run, name) => { if (!(run.reads ?? []).includes(name))
     run.reads = [...(run.reads ?? []), name]; };
+/** Monotonic clock for timing marks: a wall-clock step (NTP, sleep) must never make a segment negative or huge. */
+const mono = () => performance.now();
+/** Whole ms since a mono() reading, never negative. */
+const spanMs = (from) => Math.max(0, Math.round(performance.now() - from));
 const INTERNAL = /\b(?:cron|heartbeat|doctor|test|subagent|eval)\b/i;
 // One spoken request can arrive as two turns: the app sends what it heard when he pauses, and the rest
 // with this marker (native AppState.send). 2026-10-15: the first half ("…so if you can go ahead and")
@@ -1181,6 +1185,23 @@ export function registerLocalRouting(api, options) {
         return undefined;
     };
     const runFor = (event, ctx) => runs.get(pick(event, ctx, "runId") ?? "") ?? runs.get(`session:${pick(event, ctx, "sessionKey") ?? ""}`);
+    /** Adds timing marks to a run (and to the copy a late build was frozen into). Numbers only; any failure is swallowed. */
+    const stamp = (run, patch) => {
+        try {
+            if (run)
+                run.lat = { ...run.lat, ...patch };
+        }
+        catch { /* timing marks never touch a turn */ }
+    };
+    /** The compact `lat` object for the routing row: marks so far plus the front-desk outcome plus what the caller adds. */
+    const latOf = (run, extra = {}) => {
+        try {
+            return { lat: Object.fromEntries(Object.entries({ ...run.lat, ...run.deskMark, ...extra }).filter(([k]) => !k.endsWith("At"))) };
+        }
+        catch {
+            return {};
+        }
+    };
     const log = (entry) => {
         try {
             mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
@@ -1236,6 +1257,7 @@ export function registerLocalRouting(api, options) {
         if (!run?.settled || run.cloud)
             return undefined;
         traceLine("before_prompt_build", event, ctx, { sinceStartMs: Date.now() - run.started });
+        const buildT0 = mono();
         let timer;
         run.abort = new AbortController();
         run.writeStarted = false;
@@ -1289,6 +1311,10 @@ export function registerLocalRouting(api, options) {
                 current.promptPending = false;
             if (timer)
                 clearTimeout(timer);
+            const marks = { buildMs: spanMs(buildT0), buildEndAt: mono() };
+            stamp(run, marks);
+            if (current && current !== run)
+                stamp(current, marks);
         }
     };
     /**
@@ -1336,7 +1362,8 @@ export function registerLocalRouting(api, options) {
         }
         return undefined;
     };
-    api.on("before_model_resolve", async (event, ctx) => {
+    const resolveInner = async (event, ctx) => {
+        const hookT0 = mono();
         const runId = pick(event, ctx, "runId");
         const sessionKey = pick(event, ctx, "sessionKey") ?? "";
         const raw = str(event.prompt);
@@ -1591,14 +1618,22 @@ export function registerLocalRouting(api, options) {
         // 2026-10-30: his state, read once per turn by code (state-card.ts). The desk gets one line of it; the worker gets the card.
         const card = on && options.stateDir ? loadCardInputs({ stateDir: options.stateDir, ...(options.userMdPath ? { userMdPath: options.userMdPath } : {}), now: (options.now ?? pluginNow)() }) : undefined;
         const deskContext = [card ? deskLine(card) : "", spokenTurn ? SPOKEN_DESK_NOTE : ""].filter(Boolean).join(" ") || undefined;
+        // Timing mark for the front desk: how long the call took and how it ended (skipped / answered / timeout / error). Numbers and state words only.
+        const deskMark = { desk: "skipped", deskMs: 0 };
+        const deskT0 = mono();
+        const markDesk = (state) => { try {
+            deskMark.desk = state;
+            deskMark.deskMs = spanMs(deskT0);
+        }
+        catch { /* marks only */ } };
         const decision = cutOff
             ? Promise.resolve({ move: "ask", answer: GO_ON })
             : codeFirst || whyAsked || own || kmove ? Promise.resolve({ move: "escalate", fallback: "code-first", ms: 0 })
                 : Promise.resolve(deskHealth.begin()).then((call) => Promise.resolve()
                     .then(() => decideImpl({ message, clock: clock(), timeoutMs: call.timeoutMs, ...(outreach ? { history: outreachHistory(outreach) } : {}), ...(deskContext ? { context: deskContext } : {}) }))
-                    .then((d) => { deskHealth.record(d, call); if ("say" in d && d.say)
+                    .then((d) => { markDesk(d.fallback === "timeout" ? "timeout" : d.fallback ? "error" : "answered"); deskHealth.record(d, call); if ("say" in d && d.say)
                     progress.say(sessionKey, d.say); return d; })
-                    .catch((error) => { deskHealth.record({ error: "threw" }, call); return { error: error instanceof Error ? error.message : String(error) }; }));
+                    .catch((error) => { markDesk("error"); deskHealth.record({ error: "threw" }, call); return { error: error instanceof Error ? error.message : String(error) }; }));
         const askContext = parseAskContext(raw);
         // 2026-10-31 (pending-reply.ts): a short reply resolved against the nudge it answers (the label, the card's last push, or this chat's memo).
         // REV4: never within 30 min of the crisis reply; never over a question ORION asked here (his yes to a proposal, the reminder's "What
@@ -1615,6 +1650,8 @@ export function registerLocalRouting(api, options) {
             ...(on && !cutOff && !quietTurn && !isBareConfirm(message) ? { brain: (options.brainSearch ?? defaultBrainSearch)(message).catch(() => "") } : {}) };
         if (ledgerAsk)
             run.ledger = ledgerAsk;
+        run.deskMark = deskMark;
+        stamp(run, { chainMs: spanMs(hookT0) });
         if (runId)
             runs.set(runId, run);
         if (sessionKey)
@@ -1809,6 +1846,16 @@ export function registerLocalRouting(api, options) {
         // Every move goes to the local worker: the direct-reply hook does not fire on every route
         // (agent CLI / phone), and falling through to the configured cloud model costs money.
         return { providerOverride: workerProvider, modelOverride: workerModel };
+    };
+    // Wraps the hook only to time it: the result is returned untouched and a timing failure is swallowed.
+    api.on("before_model_resolve", async (event, ctx) => {
+        const t0 = mono();
+        try {
+            return await resolveInner(event, ctx);
+        }
+        finally {
+            stamp(runFor(event, ctx), { resolveMs: spanMs(t0) });
+        }
     });
     if (on) {
         api.on("before_agent_reply", (event, ctx) => leakFree((() => {
@@ -2722,7 +2769,9 @@ export function registerLocalRouting(api, options) {
                 // name. The draft is now his reply, with no source and no licence to rewrite it.
                 return { systemPrompt: `${LOCAL_IDENTITY}\n\nSend the reply you drafted, exactly, as your whole reply: no tools, word for word. If it states something about Nick (what he has been doing, his day, his messages) or live facts (weather, sun times) that you were not told here, leave that out. Never mention the draft or the front desk.\n\nYou drafted this reply: "${draft}".\n\n${now}` };
             }
+            const brainT0 = mono();
             const fetched = run.brain ? brainSnippets(await Promise.race([run.brain, new Promise((r) => setTimeout(() => r(""), 4000))])) : "";
+            stamp(run, { brainWaitMs: spanMs(brainT0) });
             // Snippets answer questions about his notes, never live data: "I checked the weather" beside a weather
             // note is still made up (review, 2026-10-16).
             if (fetched && !LIVE_DATA.test(run.message) && !asksCurrentTask(run.message)) {
@@ -3049,6 +3098,7 @@ export function registerLocalRouting(api, options) {
     });
     api.on("before_agent_finalize", async (event, ctx) => {
         const runId = pick(event, ctx, "runId") ?? "";
+        const finalizeT0 = mono();
         const run = runFor(event, ctx);
         traceLine("before_agent_finalize", event, ctx, { found: !!run });
         if (!run)
@@ -3099,7 +3149,7 @@ export function registerLocalRouting(api, options) {
                 const decision = run.settled ?? (await settle(run));
                 log({ runId, message: run.message, decision, flow: run.flow ? { outcome: run.flow.outcome, ...("calls" in run.flow ? { calls: run.flow.calls } : {}), ...("reason" in run.flow ? { reason: run.flow.reason } : {}), ...("undone" in run.flow && run.flow.undone ? { undone: run.flow.undone } : {}), ...("blocked" in run.flow && run.flow.blocked ? { blocked: run.flow.blocked } : {}) } : null,
                     ...(run.cutOff ? { heldCutOff: true } : {}), provided: run.provided ?? false, reads: run.reads ?? [], cloud: run.cloud ?? false, model: str(event.model) ?? null, tools: run.tools.length, findings: run.findings, passes: run.passes,
-                    ...(on ? { escalationNeeded: findings.length > 0 } : {}), ...extra, turnMs: Date.now() - run.started });
+                    ...(on ? { escalationNeeded: findings.length > 0 } : {}), ...extra, ...(run.sessionKey ? { sessionKey: run.sessionKey } : {}), ...latOf(run, { finalizeMs: spanMs(finalizeT0), passes: run.passes, ...(typeof run.lat?.buildEndAt === "number" ? { buildToFinalMs: Math.max(0, Math.round(finalizeT0 - run.lat.buildEndAt)) } : {}) }), turnMs: Date.now() - run.started });
             };
             // After the scheduling flow acted, its result is final: the worker only reports it (a retry
             // with tools let the model act on its own).
@@ -3388,7 +3438,7 @@ export function registerLocalRouting(api, options) {
         const flow = run.flow;
         log({ stage: "agent_end", runId, message: run.message, decision: run.settled ?? { move: "escalate", fallback: "unsettled" },
             flow: flow ? { outcome: flow.outcome, ..."reason" in flow ? { reason: flow.reason } : {} } : null, success: event.success !== false, error: str(event.error) ?? null,
-            tools: run.tools.length, cloud: run.cloud ?? false, turnMs: typeof event.durationMs === "number" ? event.durationMs : Date.now() - run.started });
+            tools: run.tools.length, cloud: run.cloud ?? false, ...(run.sessionKey ? { sessionKey: run.sessionKey } : {}), ...latOf(run, { passes: run.passes }), turnMs: typeof event.durationMs === "number" ? event.durationMs : Date.now() - run.started });
         progress.finish(run.sessionKey);
         runs.delete(runId);
         runs.delete(`session:${pick(event, ctx, "sessionKey") ?? run.sessionKey ?? ""}`);

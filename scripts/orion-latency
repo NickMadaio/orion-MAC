@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+/*
+ orion-latency: median / p90 per segment over the last N real turns in the plugin's routing log, from each row's `lat` marks
+ (resolveMs = before_model_resolve, chainMs = rule chain inside it, deskMs = front desk, buildMs = before_prompt_build,
+ brainWaitMs = memory lookup wait inside the build, buildToFinalMs = model + tools of the LAST pass, finalizeMs = the work check, turnMs = whole turn),
+ plus the share of asked turns that hit the front-desk timeout and the share needing rewrites.
+ Internal sessions (the plugin's own test: whole-word cron, heartbeat, doctor, test, subagent, eval in the key) are left out;
+ --exclude-sweeps also drops orion-chat-sweep-* and orion-probe* keys. A turn is keyed by runId (fallback sessionKey+at) and counted once by its last row;
+ rows with a negative or >10 min segment are dropped and the count printed. Read-only; prints numbers only.
+
+   orion-latency [--last N] [--log PATH] [--json] [--exclude-sweeps]
+*/
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { format, parseRows, realTurns, summarize } from "./lib/latency-stats.mjs";
+
+const args = process.argv.slice(2);
+const opt = (name, fallback) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] ? args[i + 1] : fallback; };
+const logPath = opt("--log", join(process.env.ORION_STATE_DIR ?? join(homedir(), ".openclaw", "orion-controlled"), "local-routing", "shadow.jsonl"));
+const last = Number.parseInt(opt("--last", "100"), 10) || 100;
+let text;
+try { text = readFileSync(logPath, "utf8"); } catch (error) { console.error(`orion-latency: cannot read the routing log (${error.code ?? "error"})`); process.exit(1); }
+const { turns, dropped } = realTurns(parseRows(text), { last, excludeSweeps: args.includes("--exclude-sweeps") });
+const summary = summarize(turns, dropped);
+console.log(args.includes("--json") ? JSON.stringify(summary) : format(summary));
