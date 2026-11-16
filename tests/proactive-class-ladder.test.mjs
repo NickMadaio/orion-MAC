@@ -80,7 +80,7 @@ function watchAfterClass({ wokeAtMinute, phoneSignals = [] }) {
   // The morning brief and question already went out earlier that day, as on 2026-10-15.
   writeFileSync(join(home, "watch.json"), JSON.stringify({ [day.toLocaleDateString("en-CA")]: { asked: ["brief", "morning"], adjusted: true, tasksPlanned: true } }));
   const r = spawnSync(process.execPath, [join(import.meta.dirname, "../scripts/orion-watch"), "tick", "--json", "--at", "10:39", "--dry-run"], { encoding: "utf8", env: {
-    PATH: process.env.PATH, HOME: home, ORION_BRIDGE_BIN: join(import.meta.dirname, "fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"),
+    PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_BRIDGE_BIN: join(import.meta.dirname, "fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"),
     ORION_HEALTH_LOG: join(dir, "health-log.json"), ORION_WATCH_FILE: join(home, "watch.json") } });
   return { r, alerts: JSON.parse(r.stdout.trim().split("\n").at(-1)) };
 }
@@ -122,7 +122,7 @@ function tick(at, { wokeAtMinute = null, extra = {} } = {}) {
   // The morning brief already went out that day (so the tick's catch-up has nothing to do).
   writeFileSync(join(dir, "morning-sent.json"), JSON.stringify({ [d.toLocaleDateString("en-CA")]: { at: d.toISOString(), signal: "up" } }));
   const r = spawnSync(process.execPath, [join(import.meta.dirname, "../scripts/orion-proactive"), "tick"], { encoding: "utf8", env: {
-    PATH: process.env.PATH, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_REACH_NOW: new Date(at).toISOString(),
+    PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_REACH_NOW: new Date(at).toISOString(),
     ORION_REACH_FACTS: JSON.stringify({ idleSeconds: 9999, locked: true }), ORION_REACH_OPEN_BIN: fakeOpen, ORION_LIGHTS_BIN: fakeOpen, ORION_FOCUS_HISTORY: join(dir, "focus-history.jsonl"),
     ORION_BRIDGE_BIN: join(import.meta.dirname, "fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"), ORION_SESSION_SOCKET: join(home, "no.sock") } });
   const outbox = existsSync(join(dir, "outreach-outbox.jsonl")) ? readFileSync(join(dir, "outreach-outbox.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];

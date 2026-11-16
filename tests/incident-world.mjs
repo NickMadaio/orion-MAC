@@ -22,7 +22,7 @@ export function world({ day = 19, cal = () => [], cfg = {}, awOver = {}, checkin
   if (checkins) writeFileSync(join(home, "checkins.json"), JSON.stringify({ checkins }));
   const bin = (name, body) => { const p = join(home, name); writeFileSync(p, `#!/bin/sh\n${body}\n`); chmodSync(p, 0o755); return p; };
   const put = (h, mi, over = awOver, d = day) => writeFileSync(join(dir, "awareness.json"), JSON.stringify(aw(at(d, h, mi), over)));
-  const env = (h, mi, d = day, extra = {}) => ({ PATH: process.env.PATH, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_CHECKIN_FILE: join(home, "checkins.json"),
+  const env = (h, mi, d = day, extra = {}) => ({ PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_CHECKIN_FILE: join(home, "checkins.json"),
     ORION_REACH_NOW: at(d, h, mi).toISOString(), ORION_CHECKIN_NOW: at(d, h, mi).toISOString(), ORION_REACH_FACTS: JSON.stringify({ idleSeconds: 5, locked: false }), ORION_REACH_OPEN_BIN: open,
     ORION_BRIDGE_BIN: join(W, "tests/fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"), ORION_SESSION_SOCKET: join(home, "no.sock"),
     ORION_AWARENESS_NO_REFRESH: "1", ...extra });

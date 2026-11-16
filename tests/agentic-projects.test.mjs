@@ -7,7 +7,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { registerProject, readProject, listProjects, projectRoot } from '../scripts/lib/agentic/projects.mjs';
 import { initializeProjectAgent, readProjectAgent } from '../scripts/lib/orion-project-agent.mjs';
-import { acquireLease } from '../scripts/lib/agentic/lease.mjs';
+import { acquireLease, bootIdFromProcStat } from '../scripts/lib/agentic/lease.mjs';
 const exec = promisify(execFile);
 const task = { id:'project-task',title:'Project task',objective:'Do one thing',weight:1,scope:['tests/workspace/example.mjs'],checks:['node-syntax'],acceptance:['It works'] };
 async function fixture(t) {
@@ -98,4 +98,9 @@ test('two concurrent starts cannot both reclaim the same dead fleet owner',async
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
   assert.equal(results.filter(r=>r.status==='rejected').length,1);
   await releaseLease(lock);
+});
+
+test('the boot id is readable from Linux /proc/stat, so a live lease is not read as a previous boot off macOS',()=>{
+  assert.equal(bootIdFromProcStat('cpu  1 2 3\nbtime 1763290000\nprocesses 99\n'),'1763290000');
+  assert.equal(bootIdFromProcStat('no boot line'),null);
 });

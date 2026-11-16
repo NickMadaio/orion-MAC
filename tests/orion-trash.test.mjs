@@ -25,7 +25,7 @@ function home() {
   mkdirSync(join(h, "Library"), { recursive: true });
   writeFileSync(join(h, "Library", "prefs.txt"), "p");
   const run = (...args) => {
-    const r = spawnSync(process.execPath, [TRASH, ...args], { encoding: "utf8", env: { PATH: process.env.PATH, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "Desktop", "ORION") } });
+    const r = spawnSync(process.execPath, [TRASH, ...args], { encoding: "utf8", env: { PATH: process.env.PATH, TZ: process.env.TZ, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "Desktop", "ORION") } });
     return { status: r.status, json: r.stdout.trim() ? JSON.parse(r.stdout) : null, stderr: r.stderr };
   };
   return { h, canary, run };
@@ -92,7 +92,7 @@ test("the brain vault and anything holding it are refused, at the default place 
   // An elsewhere vault named by ORION_BRAIN_VAULT: its notes are refused, and a folder holding it is too.
   mkdirSync(join(h, "Desktop", "work", "brain"), { recursive: true });
   writeFileSync(join(h, "Desktop", "work", "brain", "todo.md"), "t");
-  const env = { PATH: process.env.PATH, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "Desktop", "ORION"), ORION_BRAIN_VAULT: join(h, "Desktop", "work", "brain") };
+  const env = { PATH: process.env.PATH, TZ: process.env.TZ, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "Desktop", "ORION"), ORION_BRAIN_VAULT: join(h, "Desktop", "work", "brain") };
   const runV = (...args) => JSON.parse(spawnSync(process.execPath, [TRASH, ...args], { encoding: "utf8", env }).stdout);
   assert.match(runV("move", join(h, "Desktop", "work", "brain", "todo.md"), "--confirm", "todo.md").refused, /notes vault/);
   assert.match(runV("move", join(h, "Desktop", "work"), "--confirm", "work").refused, /notes vault/);
@@ -121,7 +121,10 @@ test("a case variant of the ORION repo path is still the ORION project", () => {
 test("~/Desktop/ORION is guarded even when the script runs from an installed mirror elsewhere", () => {
   const { h } = home();
   writeFileSync(join(h, "Desktop", "ORION", "README.md"), "r");
-  const r = spawnSync(process.execPath, [TRASH, "check", join(h, "Desktop", "orion", "README.md")], { encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "mirror") } });
+  const variant = join(h, "Desktop", "orion", "README.md");
+  // the lower-case spelling only names the repo on a case-insensitive disk; a case-sensitive one (Linux CI) has no such path, so use the real one
+  const target = existsSync(variant) ? variant : join(h, "Desktop", "ORION", "README.md");
+  const r = spawnSync(process.execPath, [TRASH, "check", target], { encoding: "utf8",
+    env: { PATH: process.env.PATH, TZ: process.env.TZ, HOME: h, ORION_TRASH_DIR: join(h, ".Trash"), ORION_CONTROLLED_DIR: join(h, "ctl"), ORION_REPO_DIR: join(h, "mirror") } });
   assert.match(JSON.parse(r.stdout).refused ?? "", /ORION project/);
 });

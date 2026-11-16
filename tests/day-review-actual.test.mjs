@@ -76,7 +76,7 @@ function world(awOver) {
   writeFileSync(join(dir, "curiosity.json"), JSON.stringify({ asks: [{ askId: "a", type: "fill-blank", window: { date, start: m(17), end: m(18) }, answeredAt: "x", outcome: "nothing", at: at(20, 5) }], blankGapMinutes: 60, pausedUntil: null }));
   writeFileSync(join(dir, "health-log.json"), JSON.stringify({ phoneSignals: [{ at: at(8, 40), charging: false, motion: "walking" }] }));
   const stub = join(home, "reach.mjs"); writeFileSync(stub, `import { appendFileSync } from "node:fs"; appendFileSync(${JSON.stringify(join(home, "reach.log"))}, JSON.stringify(process.argv.slice(2)) + "\\n"); console.log("Sent - stub");`);
-  const env = { PATH: process.env.PATH, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_REACH_NOW: nowD.toISOString(), ORION_REACH_BIN: stub,
+  const env = { PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_REACH_NOW: nowD.toISOString(), ORION_REACH_BIN: stub,
     ORION_BRIDGE_BIN: join(import.meta.dirname, "fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json") };
   const run = (...args) => spawnSync(process.execPath, [join(import.meta.dirname, "../scripts/orion-day-review"), ...args], { encoding: "utf8", env });
   const sent = () => (existsSync(join(home, "reach.log")) ? readFileSync(join(home, "reach.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);

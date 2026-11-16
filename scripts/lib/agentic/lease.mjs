@@ -30,10 +30,16 @@
  worktree, and two writers is the failure this file exists to make impossible.
 */
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile, lstat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 let cachedBootId;
+
+/** The boot time (seconds) from the text of Linux /proc/stat, or null. */
+export function bootIdFromProcStat(text) {
+  return String(text ?? '').match(/^btime\s+(\d+)\s*$/m)?.[1] ?? null;
+}
 
 /** A stable identifier for this boot of the machine. */
 export function bootId() {
@@ -42,6 +48,11 @@ export function bootId() {
     const raw = execFileSync('/usr/sbin/sysctl', ['-n', 'kern.boottime'], { encoding: 'utf8', timeout: 5000 });
     cachedBootId = (raw.match(/sec\s*=\s*(\d+)/)?.[1]) ?? null;
   } catch { cachedBootId = null; }
+  // Linux has no kern.boottime: /proc/stat's btime is the same fact. Without it every process got its own
+  // boot id, so a live holder's lease always read "previous boot" and was cleared (two writers).
+  if (!cachedBootId) {
+    try { cachedBootId = bootIdFromProcStat(readFileSync('/proc/stat', 'utf8')); } catch { cachedBootId = null; }
+  }
   // A machine whose boot time cannot be read gets a per-process identity
   // instead. That is strictly SAFER: it never matches a stored boot, so an
   // orphaned lease is never cleared on evidence this process could not gather.

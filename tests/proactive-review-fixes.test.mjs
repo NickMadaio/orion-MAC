@@ -31,7 +31,7 @@ function world({ commute = 45, wokeAt = null, announced = null, morningSent = tr
   if (announced) writeFileSync(join(dir, "announced.json"), JSON.stringify({ [date]: { "class-540": announced } }));
   if (wokeAt != null) { const wk = new Date(day[0], day[1], day[2], Math.floor(wokeAt / 60), wokeAt % 60); writeFileSync(join(dir, "sleep-actual.json"), JSON.stringify({ nights: [{ fellAsleep: new Date(wk - 7 * 3600_000).toISOString(), wokeAt: wk.toISOString() }] })); }
   const weather = join(home, "w.json"); writeFileSync(weather, "{}");
-  const env = (h, mi, extra = {}) => ({ PATH: process.env.PATH, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"),
+  const env = (h, mi, extra = {}) => ({ PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CONTROLLED_DIR: dir, ORION_LIFE_CONFIG: join(home, "config.json"),
     ORION_REACH_NOW: new Date(day[0], day[1], day[2], h, mi).toISOString(), ORION_REACH_FACTS: JSON.stringify(facts), ORION_REACH_OPEN_BIN: open, ORION_LIGHTS_BIN: open,
     ORION_WEATHER_FILE: weather, ORION_FOCUS_HISTORY: join(dir, "focus-history.jsonl"), ORION_BRIDGE_BIN: join(W, "tests/fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"),
     ORION_SESSION_SOCKET: join(home, "no.sock"), ...extra });
@@ -146,7 +146,7 @@ function notifyWorld() {
   const reach = exe(home, "reach", `[ -f ${home}/reach-up ] || exit 4\nsleep 1\necho "reach $1" | tr '\\n' ' ' | head -c 70 >> ${log}; echo >> ${log}\nexit 0`);
   // His sleep window decides quiet now (awareness 3.1); the old fixed 23:00-08:00 is only the fallback, so the test sets it as his window.
   writeFileSync(join(home, "config.json"), JSON.stringify({ bedtime: "23:00", usualWake: "08:00" }));
-  const env = { PATH: process.env.PATH, HOME: home, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_DISCORD_ALERT_BIN: disc, ORION_REACH_BIN: reach, ORION_SESSION_SOCKET: join(home, "no.sock"),
+  const env = { PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_LIFE_CONFIG: join(home, "config.json"), ORION_DISCORD_ALERT_BIN: disc, ORION_REACH_BIN: reach, ORION_SESSION_SOCKET: join(home, "no.sock"),
     ORION_REACH_FACTS: JSON.stringify({ idleSeconds: 9999, locked: true }) };   // awareness refresh must not read the real Mac
   const run = (args, timeout = 120000) => spawnSync(process.execPath, [join(W, "scripts/orion-notify"), ...args], { encoding: "utf8", env, timeout });
   const state = () => JSON.parse(readFileSync(join(home, ".openclaw/orion-controlled/remote.json"), "utf8"));
@@ -226,7 +226,7 @@ test("M6: a check-in he set fires during a focus session, at any level", async (
     const nowMin = Math.floor(NOON.getTime() / 60000);
     const file = join(home, "checkins.json");
     writeFileSync(file, JSON.stringify({ checkins: [{ id: "ci-1", what: "start the DS lab write-up", dueAt: nowMin - 5, createdAt: NOON.toISOString(), alerts: 0, returning: null, loop: { blockId: "ci-1", phase: "waiting", level: 0, nextCheckAt: nowMin - 5, deferrals: 0, history: [] } }] }));
-    const tick = () => JSON.parse(spawnSync(process.execPath, [join(W, "scripts/orion-checkin"), "tick", "--json"], { encoding: "utf8", env: { ...NOON_ENV, PATH: process.env.PATH, HOME: home, ORION_CHECKIN_FILE: file,
+    const tick = () => JSON.parse(spawnSync(process.execPath, [join(W, "scripts/orion-checkin"), "tick", "--json"], { encoding: "utf8", env: { ...NOON_ENV, PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CHECKIN_FILE: file,
       ORION_BRIDGE_BIN: join(W, "tests/fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"), ORION_SESSION_SOCKET: sock } }).stdout);
     assert.equal(tick().length, 1, "the first reminder he asked for goes through");
     const saved = JSON.parse(readFileSync(file, "utf8")); saved.checkins[0].loop.nextCheckAt = nowMin - 1; writeFileSync(file, JSON.stringify(saved));
@@ -300,7 +300,7 @@ test("N1: still asleep (no WHOOP, no phone samples): the 10:45 class gets a ladd
 test("N2: a standing heads-up (blocked --urgent, no approval) is held, not pushed, when Discord is down at 7 AM; a real approval request goes", () => {
   const n = notifyWorld(); writeFileSync(join(n.home, "reach-up"), "");
   const reach = join(n.home, "reach2"); writeFileSync(reach, `#!/bin/sh\necho "$@" >> ${join(n.home, "reach-args.log")}\n`); chmodSync(reach, 0o755);
-  const env = { ...process.env, PATH: process.env.PATH, HOME: n.home, ORION_DISCORD_ALERT_BIN: join(n.home, "discord"), ORION_REACH_BIN: reach, ORION_SESSION_SOCKET: join(n.home, "no.sock") };
+  const env = { ...process.env, PATH: process.env.PATH, TZ: process.env.TZ, HOME: n.home, ORION_DISCORD_ALERT_BIN: join(n.home, "discord"), ORION_REACH_BIN: reach, ORION_SESSION_SOCKET: join(n.home, "no.sock") };
   const go = (args) => spawnSync(process.execPath, [join(W, "scripts/orion-notify"), ...args, "--now", "2026-10-16T07:00:00"], { encoding: "utf8", env });
   go(["blocked", "standing-check", "Heads up 9:00 AM - CS1800. Starts in 2h.", "--urgent"]);
   go(["blocked", "mission-x", "need the key", "--approval", "use staging key"]);
@@ -334,7 +334,7 @@ test("check-ins: one ORION generated (--by orion) waits for the session; one he 
     const mk = (id, by) => ({ id, what: `start ${id}`, by, dueAt: nowMin - 5, createdAt: NOON.toISOString(), alerts: 0, returning: null, loop: { blockId: id, phase: "waiting", level: 0, nextCheckAt: nowMin - 5, deferrals: 0, history: [] } });
     const file = join(home, "checkins.json");
     writeFileSync(file, JSON.stringify({ checkins: [mk("ci-mine", "nick"), mk("ci-orion", "orion")] }));
-    const out = JSON.parse(spawnSync(process.execPath, [join(W, "scripts/orion-checkin"), "tick", "--json"], { encoding: "utf8", env: { ...NOON_ENV, PATH: process.env.PATH, HOME: home, ORION_CHECKIN_FILE: file,
+    const out = JSON.parse(spawnSync(process.execPath, [join(W, "scripts/orion-checkin"), "tick", "--json"], { encoding: "utf8", env: { ...NOON_ENV, PATH: process.env.PATH, TZ: process.env.TZ, HOME: home, ORION_CHECKIN_FILE: file,
       ORION_BRIDGE_BIN: join(W, "tests/fixtures/fake-bridge.mjs"), FAKE_CALENDAR: join(home, "cal.json"), ORION_SESSION_SOCKET: sock } }).stdout);
     assert.deepEqual(out.map((a) => a.id), ["ci-mine"]);
   } finally { srv.kill(); }
