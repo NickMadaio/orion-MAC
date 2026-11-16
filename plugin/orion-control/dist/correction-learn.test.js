@@ -2,11 +2,11 @@
 // forgotten when the chat ended. It is now kept in USER.md's learned lines through orion-remember --user, and every local turn's
 // state card carries the standing rules back. Phrasings marked "held out" appear nowhere in the implementation's comments or in
 // any gate scenario. No real paths.
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { inEvaluation, learnCorrection, learnedRules, readCorrection, standingRulesLine } from "./correction-learn.js";
+import { LEARNING_LOG_MAX_BYTES, inEvaluation, learnCorrection, learnedRules, logCorrectionNotAttempted, readCorrection, standingRulesLine } from "./correction-learn.js";
 import { registerLocalRouting } from "./local-routing.js";
 describe("readCorrection: corrections meant to last", () => {
     it.each([
@@ -104,7 +104,7 @@ function routed(o) {
     const handlers = new Map();
     const remembered = [];
     registerLocalRouting({ on: (name, fn) => handlers.set(name, [...(handlers.get(name) ?? []), fn]) }, {
-        warm: false, mode: "on", logPath: join(o.stateDir, "r.jsonl"), brainSearch: async () => "", clock: () => "Mon 12:00", now: () => new Date(2026, 10, 2, 12, 0),
+        warm: false, mode: o.mode ?? "on", logPath: join(o.stateDir, "r.jsonl"), brainSearch: async () => "", clock: () => "Mon 12:00", now: () => new Date(2026, 10, 2, 12, 0),
         stateDir: o.stateDir, userMdPath: o.userMdPath,
         decideImpl: async () => ({ move: "escalate", tier: "standard" }),
         // What scripts/orion-remember --user does: appends a dated line to USER.md.
@@ -174,5 +174,139 @@ describe("through the routing hooks: a correction in session A is in session B's
         await settle();
         expect(h.remembered).toEqual([]);
         expect(existsSync(userMd) && readFileSync(userMd, "utf8")).toBe(USER);
+    });
+});
+describe("learnCorrection logs every attempt (A6)", () => {
+    const rows = (dir, file = "learning-attempts.jsonl") => readFileSync(join(dir, file), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    it("records not-qualified, saved and failed with reasons", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-log-"));
+        const ok = async () => ({ stdout: "remembered -> ~/.openclaw/workspace/USER.md", code: 0 });
+        expect(await learnCorrection("no", { run: ok, stateDir: dir })).toBe("skipped");
+        expect(await learnCorrection("its called macro not econ", { run: ok, stateDir: dir })).toBe("saved");
+        expect(await learnCorrection("its called bio not chem", { run: async () => ({ stdout: "boom", code: 2 }), stateDir: dir })).toBe("failed");
+        expect(await learnCorrection("its called phys not math", { run: async () => { throw new Error("spawn EACCES"); }, stateDir: dir })).toBe("failed");
+        const r = rows(dir);
+        expect(r.map((x) => x.decision)).toEqual(["not-qualified", "qualified", "qualified", "qualified"]);
+        expect(r.every((x) => x.kind === "correction" && typeof x.at === "string")).toBe(true);
+        expect(r[0].reason).toMatch(/no lasting-correction pattern/);
+        expect(r[1].write.result).toBe("ok");
+        expect(r[2].write.error).toMatch(/boom/);
+        expect(r[3].write.error).toMatch(/spawn EACCES/);
+    });
+    it("logs a session that is not Nick's, and an evaluation (to the eval log, like the scripts)", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-log-"));
+        const ok = async () => ({ stdout: "remembered", code: 0 });
+        expect(await learnCorrection("its called macro not econ", { run: ok, stateDir: dir, sessionKey: "agent:main:cron:nightly" })).toBe("skipped");
+        expect(rows(dir)[0].reason).toMatch(/not Nick/);
+        writeFileSync(join(dir, "eval-mode"), "x");
+        expect(await learnCorrection("its called macro not econ", { run: ok, stateDir: dir })).toBe("skipped");
+        expect(rows(dir, "eval-learning-attempts.jsonl")[0].reason).toMatch(/evaluation/);
+    });
+    it("an existing log with wide permissions is tightened to owner-only", () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-log-"));
+        const file = join(dir, "learning-attempts.jsonl");
+        writeFileSync(file, "");
+        chmodSync(file, 0o644);
+        logCorrectionNotAttempted(dir, "r", { message: "x" });
+        expect(statSync(file).mode & 0o777).toBe(0o600);
+    });
+    it("a log that cannot be written never throws into the turn", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-log-"));
+        writeFileSync(join(dir, "blocker"), "file");
+        const ok = async () => ({ stdout: "remembered", code: 0 });
+        expect(await learnCorrection("its called macro not econ", { run: ok, stateDir: join(dir, "blocker", "sub") })).toBe("saved");
+    });
+    it("logCorrectionNotAttempted records why a turn never reached the detector", () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-log-"));
+        logCorrectionNotAttempted(dir, "not attempted: spoken turn", { message: "x", sessionKey: "s" });
+        expect(rows(dir)[0]).toMatchObject({ kind: "correction", decision: "not-qualified", reason: "not attempted: spoken turn", write: { result: "skipped" } });
+        expect(() => logCorrectionNotAttempted(undefined, "r", { message: "x" })).not.toThrow();
+    });
+});
+describe("through the routing hooks: attempts are logged, skipped turns say why", () => {
+    const rowsOf = (dir) => { try {
+        return readFileSync(join(dir, "learning-attempts.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    }
+    catch {
+        return [];
+    } };
+    it("a spoken turn that is not a fact is logged as not attempted, with the reason", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "cl-route-"));
+        const userMd = join(dir, "USER.md");
+        writeFileSync(userMd, USER);
+        const h = routed({ stateDir: dir, userMdPath: userMd });
+        await h.turn("[Nick SAID this out loud] its called macro not econ", "A");
+        await settle();
+        expect(h.remembered).toEqual([]);
+        expect(rowsOf(dir).some((r) => /not attempted: spoken turn/.test(r.reason ?? ""))).toBe(true);
+    });
+    it("a typed correction is logged as an attempt", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "cl-route-"));
+        const userMd = join(dir, "USER.md");
+        writeFileSync(userMd, USER);
+        const h = routed({ stateDir: dir, userMdPath: userMd });
+        await h.turn("its called bio not chem", "A");
+        await settle();
+        expect(rowsOf(dir).some((r) => r.decision === "qualified" && r.write?.result === "ok")).toBe(true);
+    });
+});
+describe("the attempt log keeps no text of turns that were not corrections (review 2026-11-16)", () => {
+    const rows = (dir) => readFileSync(join(dir, "learning-attempts.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const ok = async () => ({ stdout: "remembered", code: 0 });
+    it("a not-qualified turn logs a character count and the channel, never the message", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-priv-"));
+        const secret = "i feel like i cant do this anymore";
+        await learnCorrection(secret, { run: ok, stateDir: dir, sessionKey: "agent:main:orion-chat-x" });
+        const [r] = rows(dir);
+        expect(JSON.stringify(r)).not.toContain("cant do this");
+        expect(r.trigger.message).toBeUndefined();
+        expect(r.trigger).toMatchObject({ chars: secret.length, channel: "orion-chat-x" });
+    });
+    it("a turn that was not attempted logs the reason, count and channel only", () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-priv-"));
+        logCorrectionNotAttempted(dir, "not attempted: spoken turn", { message: "private words here", sessionKey: "agent:main:orion-chat-y" });
+        const [r] = rows(dir);
+        expect(JSON.stringify(r)).not.toContain("private words");
+        expect(r.trigger).toMatchObject({ chars: 18, channel: "orion-chat-y" });
+    });
+    it("a turn that qualified as a correction keeps its text", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-priv-"));
+        await learnCorrection("its called macro not econ", { run: ok, stateDir: dir });
+        expect(rows(dir)[0].trigger.message).toBe("its called macro not econ");
+    });
+    it("the file is created owner-only (0600)", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-priv-"));
+        await learnCorrection("its called macro not econ", { run: ok, stateDir: dir });
+        expect(statSync(join(dir, "learning-attempts.jsonl")).mode & 0o777).toBe(0o600);
+    });
+    it("the file is capped: past the limit it is cut to its newest rows", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "learn-priv-"));
+        const file = join(dir, "learning-attempts.jsonl");
+        const old = `${JSON.stringify({ at: "x", kind: "correction", pad: "p".repeat(900) })}\n`;
+        writeFileSync(file, old.repeat(Math.ceil(LEARNING_LOG_MAX_BYTES / old.length) + 5));
+        await learnCorrection("its called macro not econ", { run: ok, stateDir: dir });
+        expect(statSync(file).size).toBeLessThanOrEqual(LEARNING_LOG_MAX_BYTES);
+        const last = readFileSync(file, "utf8").trim().split("\n").at(-1);
+        expect(JSON.parse(last).trigger.message).toBe("its called macro not econ");
+    });
+    it("through the hooks: a crisis message is never written to the log", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "cl-priv-"));
+        const userMd = join(dir, "USER.md");
+        writeFileSync(userMd, USER);
+        const h = routed({ stateDir: dir, userMdPath: userMd });
+        await h.turn("i want to end it all tonight", "A");
+        await settle();
+        expect(existsSync(join(dir, "learning-attempts.jsonl")) ? readFileSync(join(dir, "learning-attempts.jsonl"), "utf8") : "").not.toContain("end it all");
+    });
+    it("in shadow mode the reason says so, not 'another flow owned the turn'", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "cl-shadow-"));
+        const userMd = join(dir, "USER.md");
+        writeFileSync(userMd, USER);
+        const h = routed({ stateDir: dir, userMdPath: userMd, mode: "shadow" });
+        await h.turn("its called macro not econ", "A");
+        await settle();
+        const reasons = rows(dir).map((r) => r.reason);
+        expect(reasons.some((r) => /shadow mode/.test(r))).toBe(true);
+        expect(reasons.some((r) => /another flow/.test(r))).toBe(false);
     });
 });

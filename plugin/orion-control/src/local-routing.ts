@@ -129,7 +129,7 @@ import { learnPersonAfter } from "./person-learn.js";
 const CHAT_SURFACE = /:(?:orion-chat-|discord|telegram|imessage|whatsapp|main$)/;
 import { bedtimeFromState, focusRunning } from "./bed-state.js";
 import { readPreference, savePreference, type Preference } from "./preference-remember.js";
-import { learnCorrection, pendingOffer, standingRulesLine } from "./correction-learn.js";
+import { learnCorrection, logCorrectionNotAttempted, pendingOffer, standingRulesLine } from "./correction-learn.js";
 import { ownsSleepStatement, readSleepTurn, type SleepTurn } from "./sleep-plan-read.js";   // W10-B: a standing wake statement wins over a health read ("gym days")
 import { readPhoneBlock, type PhoneBlockRead } from "./phone-block-read.js";
 import { runPhoneBlock, type PhoneTimeRun } from "./phone-block-flow.js";
@@ -293,6 +293,10 @@ export type LocalRoutingOptions = {
 };
 
 type Run = {
+  /** Code decided this turn is deliberate silence (an ignore, a quiet window, room talk): its "…" is dictated, so it is never a blank model reply (audit G1, 2026-11-16). */
+  quiet?: boolean;
+  /** True while this turn's before_prompt_build is still running; before_agent_run reads it (a host hook cut-off leaves it true, 2026-11-16). */
+  promptPending?: boolean;
   /** The scheduler's undo journal top when this turn began: every entry after it was written by this turn (a turn with two writes owns both). */
   journalTop0?: string | null;
   /** w20 r3: the text of an outreach he never engaged with (ORION has replied since): never repeated in a reply. */
@@ -615,6 +619,9 @@ const FOOD_TURN = /\b(?:calories|calorie|cals|kcal|macros|protein|carbs|ate|eate
 
 // The small core every local turn gets (Nick, 2026-10-12: a small prompt, and ORION looks up the rest
 // in the brain). The manual is generated into the brain by scripts/orion-brain-manual.
+/** What he is told when the slim prompt was not ready in time (the host would otherwise send the 17-19k-token workspace prompt to the 9B). */
+export const PROMPT_NOT_READY_LINE = "I couldn't prepare that request. Please try again.";
+
 export const LOOK_IT_UP = "Your manual and his memory live in his brain; you only see a small part of it here. When you need something that is not in front of you — how a script works, a scheduling rule, dates, his routines, people, preferences, what was decided before — look it up first with exec: /Users/nickmadaio/Desktop/ORION/scripts/orion-brain search \"<words>\", or read \"ORION Manual - Index\" for the list of manual sections, then read \"<title>\". Never guess a fact about Nick or a command's syntax that you could look up.";
 
 /** Brain search for the message, trimmed to the best few matches (pre-fetched while the front desk decides). */
@@ -1294,7 +1301,8 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
 
   /** The run, swapped for a copy that the (late) original build can no longer change: what Nick is told is fixed once the hook gives up. */
   const freezeRun = (old: Run, flow: FlowResult): Run => {
-    const next: Run = { ...old, flow, provided: false, directive: undefined, reminder: undefined };
+    // promptPending is cleared on the copy: the plugin has answered (its own 50 s cut), so before_agent_run must not refuse a turn that is already handled.
+    const next: Run = { ...old, flow, provided: false, directive: undefined, reminder: undefined, promptPending: false };
     for (const [k, v] of runs) if (v === old) runs.set(k, next);
     return next;
   };
@@ -1323,6 +1331,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
     traceLine("before_prompt_build", event, ctx, { sinceStartMs: Date.now() - run.started });
     let timer: ReturnType<typeof setTimeout> | undefined;
     run.abort = new AbortController(); run.writeStarted = false;
+    run.promptPending = true;
     const cut = new Promise<"cut">((resolve) => { timer = setTimeout(() => resolve("cut"), HOOK_TIMEOUT_MS - 5_000); timer.unref?.(); });
     try {
       const working = building.run(run, () => Promise.resolve(inner(event, ctx)));
@@ -1357,7 +1366,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
     } catch (error) {
       api.logger?.warn?.(`[orion-control] before_prompt_build failed, using the slim prompt: ${error instanceof Error ? error.message : String(error)}`);
       return { systemPrompt: `${instructionsFor(run.settled, run.message)}\n\n${PRODUCTION_NOTES}\n\n${LOOK_IT_UP}\n\nNow: ${clock()} (Europe/London). ${dateLine()}` };
-    } finally { if (timer) clearTimeout(timer); }
+    } finally { run.promptPending = false; const current = runFor(event, ctx); if (current) current.promptPending = false; if (timer) clearTimeout(timer); }
   };
 
   /**
@@ -1587,7 +1596,10 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
     // Fixer: what ORION just proposed (its label, last push, held offer or memo), so "no dont move my study block" stays one-off.
     if (free && !preference && !sleepTurn && !pendingYes && options.rememberRun && (!spokenTurn || tellsFactAloud(message))) {
       const offered = pendingOffer({ label: parseOutreach(raw)?.text, stateDir: options.stateDir, now: (options.now ?? pluginNow)(), held: !!held, memo: sessionKey ? pendingMemory.memo(sessionKey, (options.now ?? pluginNow)().getTime()) : undefined });
-      void learnCorrection(message, { run: options.rememberRun, ...(options.stateDir ? { stateDir: options.stateDir } : {}), ...(options.userMdPath ? { userMdPath: options.userMdPath } : {}), ...(offered ? { offered } : {}), sessionKey });
+      learnCorrection(message, { run: options.rememberRun, ...(options.stateDir ? { stateDir: options.stateDir } : {}), ...(options.userMdPath ? { userMdPath: options.userMdPath } : {}), ...(offered ? { offered } : {}), sessionKey })
+        .catch((e: unknown) => { try { console.error(`correction-learn: attempt failed (${e instanceof Error ? e.message : String(e)})`); } catch { /* never into the turn */ } });
+    } else if (options.rememberRun && options.stateDir) {
+      logCorrectionNotAttempted(options.stateDir, `not attempted: ${!on ? "shadow mode (routing is not live)" : spokenTurn && !tellsFactAloud(message) ? "spoken turn" : "another flow owned the turn"}`, { message, sessionKey });
     }
     const kheld = sessionKey ? knowledgePending.take(sessionKey, Date.now()) : undefined;
     const kmove = on && !cutOff && !quietTurn && !ledgerOwns && !realityWhole && !pendingYes && !preference && !isCrisis(message) && options.knowledgeRun ? readKnowledgeMove(message, { ...(kheld ? { held: kheld } : {}), spoken: spokenTurn }) : undefined;
@@ -1840,7 +1852,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
       if (isCrisis(run.message) && !run.afterCrisis) run.flow = { outcome: "say", kind: "plain", text: CRISIS_REPLY };
       // 2026-10-30 (chatter.ts): his quiet request gets a short ack; a spoken turn inside the window gets nothing. Safety (above) still wins.
       if (!run.flow && run.quietStart !== undefined) { quiet.start(nowMs(), run.quietStart, run.message); run.flow = { outcome: "say", kind: "plain", text: quietAck(run.quietStart) }; }
-      if (!run.flow && run.hushed) run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY };
+      if (!run.flow && run.hushed) { run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY }; run.quiet = true; }
       // w18 note: a bare "make a note" is asked once by code, and his next message (10 minutes, this chat) is the whole note; a clear command unbinds it.
       if (!run.flow && !run.cutOff && options.noteFlow && run.sessionKey) {
         const asked = noteAwait.get(run.sessionKey); noteAwait.delete(run.sessionKey);
@@ -2075,7 +2087,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
       // loop-morning-brief-v): it goes to the worker with that message in front of it. Spoken room speech the desk calls ignore,
       // with no "orion" in it, gets no reply at all (R2: rehearsal, phone call, TV).
       const answersOutreach = !!run.outreach || (recentPush(run.card) && run.message.trim().split(/\s+/).length <= 6);
-      if (!run.flow && run.settled.move === "ignore" && run.spoken && !addressed(run.message) && !answersOutreach && !run.stitched) run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY };
+      if (!run.flow && run.settled.move === "ignore" && run.spoken && !addressed(run.message) && !answersOutreach && !run.stitched) { run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY }; run.quiet = true; }
       if (!run.flow && run.settled.move === "ignore" && isNotForOrion(run.message, !!run.spoken) && !answersOutreach && !run.stitched) run.flow = { outcome: "say", kind: "plain", text: NOT_CAUGHT };
       // w20 routegate: several plain requests in one message ("open safari and set a timer and add milk to my list"). Code splits the asks (a
       // clause about the calendar, a reminder, bed or the alarm keeps the whole message for the scheduling flow); the worker runs each with its
@@ -2423,11 +2435,11 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
       }
       if (run.flow?.outcome === "say") {
         // 2026-10-31 (cha-tv-v): inside a run of room talk, a question back ("What time should I remind you?") or a failure line is not said.
-        if (run.room === "streak" && roomQuiet(exactFor(run), run.flow.kind)) run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY };
+        if (run.room === "streak" && roomQuiet(exactFor(run), run.flow.kind)) { run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY }; run.quiet = true; }
         if (run.spoken && !addressed(run.message) && exactFor(run) === QUIET_REPLY) rooms.mark(run.sessionKey, nowMs());
         // 2026-10-30: the same failure line never twice in ten minutes in a session (R2: thirty "Not done: 6:00 AM–6:00 AM").
         const said = exactFor(run); const guarded = repeats.guard(run.sessionKey, said, !!run.spoken, nowMs(), run.message);
-        if (guarded !== said) run.flow = { outcome: "say", kind: "plain", text: guarded };
+        if (guarded !== said) { run.flow = { outcome: "say", kind: "plain", text: guarded }; if (guarded === QUIET_REPLY) run.quiet = true; }
         const exact = exactFor(run);
         return { systemPrompt: `${EXACT_REPLY_PROMPT}\n${exact}`,
           appendContext: `[ORION scheduler — nothing was changed. Your whole reply must be exactly: ${exact}]` };
@@ -2437,7 +2449,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
       // his day is always work, whatever the front desk thought.
       // A lookup (weather, sun times, his texts, his day) never gets a draft: nothing checks a draft's facts.
       // 2026-10-31: inside a run of room talk, nothing reaches the worker's free reply: only a flow that acted above may answer.
-      if (run.room === "streak") { run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY }; rooms.mark(run.sessionKey, nowMs()); return fixedReply(QUIET_REPLY); }
+      if (run.room === "streak") { run.flow = { outcome: "say", kind: "plain", text: QUIET_REPLY }; run.quiet = true; rooms.mark(run.sessionKey, nowMs()); return fixedReply(QUIET_REPLY); }
       const lookup = needsLiveData(run.message);
       const draft = withoutUnverifiedAlarmClaims(withoutAsleepClaims(withoutDayClaims(run.settled.answer ?? "")), options.stateDir, (options.now ?? pluginNow)());
       if (run.settled.move === "answer" && draft && !run.pendingRefers && !(ackImpliesChange(draft) && (CHANGE_REQUEST.test(run.message) || readCorrection(run.message))) && !CHANGE_REQUEST.test(run.message) && !lookup) {
@@ -2495,6 +2507,18 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
       } catch { return PASS; }
     }, { timeoutMs: 12_000 });
   }
+
+  // 2026-11-16 (A1): a DORMANT BACKSTOP, not a live guard. The host cuts before_prompt_build off at its hook timeout and then drops the slim prompt (the 9B
+  // gets the whole workspace prompt, 3 min on one call). In normal operation that cannot happen: the hook is registered at HOOK_TIMEOUT_MS (55 s) and the
+  // plugin cuts its own build at 50 s, so the plugin always answers first (with the safe slow-flow line) and promptPending is already clear here.
+  // This gate only becomes live if config lowers the hook timeout below the plugin's own cut. before_agent_run is fail-closed: a build still running
+  // then means the slim prompt will be missing, so the turn is refused with a short plain line. A build that returned (even nothing) never triggers it.
+  if (on) api.on("before_agent_run", (event, ctx) => {
+    const run = runFor(event, ctx);
+    if (!run || run.cloud || run.promptPending !== true) return { outcome: "pass" } as const;
+    traceLine("prompt_not_ready", event, ctx, { sinceStartMs: Date.now() - run.started });
+    return { outcome: "block", reason: "the slim prompt was not ready (before_prompt_build still running)", message: PROMPT_NOT_READY_LINE };
+  }, { timeoutMs: 5_000 });
 
   // The text that must reach Nick for a run (the scheduler's own reply, or an honest stop), applied at
   // delivery: the 9B paraphrased it from session history ("Done: grind leetcode 6:15…" after a clear).
@@ -2809,7 +2833,9 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
           ?? honestLine(SCHEDULING.test(run.message) || run.tools.some((t) => /orion-reschedule/.test(t.canonical)), run.message, run.tools, true)
         : undefined;
       if (honestNow) { owed = honestNow; remember([runId, sessionKeyNow], honestNow); }
-      if (on && findings.length > 0 && run.passes < revisePasses(!!run.spoken) && !flowActed && !hostDrops && !honestNow) {
+      // 2026-11-16 (A5): a blank reply is retried ONCE (the shared pass counter, so it never stacks with the rewrites), then code says the model returned nothing.
+      const blankReply = !run.quiet && isBlank(reply);
+      if (on && (findings.length > 0 || blankReply) && run.passes < (blankReply ? 1 : revisePasses(!!run.spoken)) && !flowActed && !hostDrops && !honestNow) {
         run.passes += 1;
         await record({ revised: true });
         const calendar = SCHEDULING.test(run.message) || run.tools.some((t) => /orion-reschedule/.test(t.canonical));
@@ -2818,7 +2844,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
         // "Undo" only after this turn wrote something: told to undo with nothing to undo, the 9B could take
         // back an earlier turn's change from the journal (review, 2026-10-16).
         const stop = wroteThisTurn(run.tools) ? HONEST_STOP : HONEST_STOP_NO_WRITE;
-        const instruction = run.passes === 1 ? retryInstruction(findings)
+        const instruction = run.passes === 1 ? retryInstruction(findings.length > 0 ? findings : ["did not finish"])
           : claimed ? `${stop}\nIgnore the earlier conversation. Your whole reply must be exactly this text, nothing before or after: ${honestLine(calendar, run.message, run.tools)}`
           : lookedUp ? `${stop}\nIgnore the earlier conversation. Your whole reply must be exactly this text, nothing before or after: ${LOOKUP_HONEST}`
           : stop;
@@ -2885,7 +2911,7 @@ export function registerLocalRouting(api: HookApi, options: LocalRoutingOptions)
           const cut = stripOutreachEcho(text, echoed);
           if (cut !== text) owed = cut || "Sorry, I lost track of what you meant by that. What should I do?";
         }
-        if (isBlank(owed ?? reply)) {
+        if (!run.quiet && isBlank(owed ?? reply)) {
           const failed = failedTools(run.tools)[0];
           const reason = failed ? failureReason(failed.stdout ?? "") || "a step I ran failed" : undefined;
           owed = emptyReplyLine(reason);

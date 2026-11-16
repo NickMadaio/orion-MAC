@@ -27,6 +27,7 @@ import {
   resolveQuestion, skipQuestion, updateQuestions,
 } from "./lib/brain/questions.mjs";
 import { foldAnswer, learnedLine } from "./lib/brain/questions-notes.mjs";
+import { learningLogPath, logAttempt } from "./lib/brain/learning-log.mjs";
 
 const VALUE_FLAGS = ["--why", "--topic", "--priority", "--via", "--text"];
 const argv = process.argv.slice(2);
@@ -60,10 +61,32 @@ function keep(fact) {
   catch (e) { return { kept: "no", note: `saved as answered, but his Nick note could not be written (${String(e.message).slice(0, 80)})` }; }
 }
 
+/** Every add attempt is one row in learning-attempts.jsonl, whatever happens to it (A6). Exit codes follow fail(): 2 bad arguments, 3 refused. */
+const LOG_TEXT_MAX = 200;
+const clip = (v) => typeof v === "string" && v.length > LOG_TEXT_MAX ? `${v.slice(0, LOG_TEXT_MAX - 3)}...` : v;
+/** The trigger as logged: text clipped, and nothing of the question or why at all when it was refused as secret-like. */
+const loggedTrigger = (trigger, secretLike) => secretLike ? { by: trigger.by, text: "withheld: refused as secret-like" }
+  : Object.fromEntries(Object.entries(trigger).map(([k, v]) => [k, clip(v)]));
+function logAdd(trigger, decision, write, reason, { secretLike = false } = {}) {
+  trigger = loggedTrigger(trigger, secretLike);
+  logAttempt(learningLogPath(controlledDir(), { sandboxed }), { kind: "question-add", trigger, decision, ...(reason ? { reason } : {}), write }, now);
+}
+
 if (command === "add") {
   const q = rest.join(" ");
-  if (!q.trim()) fail(2, USAGE);
-  const out = change((rows) => addQuestion(rows, { q, ...fields() }, now));
+  const trigger = { by: "orion-questions add", q, ...fields() };
+  if (!q.trim()) { logAdd(trigger, "not-qualified", { result: "error", exit: 2, error: "empty question" }, "no question given"); fail(2, USAGE); }
+  let out;
+  try { out = updateQuestions(path, (rows) => addQuestion(rows, { q, ...fields() }, now)); }
+  catch (e) {
+    const exit = /needs|usage/.test(e.message) ? 2 : 3;
+    const refused = exit === 3 && /full|secret|looks like|not open/.test(e.message);
+    const secretLike = /secret/i.test(e.message);
+    logAdd(trigger, "not-qualified", { result: refused ? "refused" : "error", exit, error: secretLike ? "refused: secret-like" : clip(e.message) }, secretLike ? "refused as secret-like" : clip(e.message), { secretLike });
+    fail(exit, e.message);
+  }
+  if (out.duplicate) logAdd(trigger, "not-qualified", { result: "skipped", id: out.duplicate.id }, `duplicate of ${out.duplicate.id}`);
+  else logAdd(trigger, "qualified", { result: "ok", id: out.added.id });
   if (out.duplicate) say(`Already on the list as ${out.duplicate.id}: ${out.duplicate.q}`, { duplicate: out.duplicate });
   say(`Added ${out.added.id}: ${out.added.q} (I'll ask him when he has a moment, at most one a day.)`, { added: out.added });
 } else if (command === "list") {

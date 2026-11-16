@@ -3053,5 +3053,33 @@
     ]
    }
   }
+ },
+ {
+  "id": "blank-worker-retried-once-then-honest",
+  "say": "hows my week looking",
+  "audit": "A2",
+  "now": "2026-11-05T12:30",
+  "expect": {
+   "route": "worker",
+   "replyHas": [
+    "model returned nothing"
+   ],
+   "replyLacks": [
+    "in time",
+    "timed out",
+    "took too long"
+   ]
+  },
+  "recorded": {
+   "desk": {
+    "move": "escalate",
+    "tier": "standard",
+    "say": "One moment."
+   },
+   "worker": [
+    "",
+    ""
+   ]
+  }
  }
 ]

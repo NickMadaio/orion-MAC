@@ -27,11 +27,20 @@ export declare function pendingOffer(o: {
         title?: string;
     } | undefined;
 }): string | undefined;
-/** Reads the message and, if it is a lasting correction, keeps it (capped, never twice). Never throws; reports what happened. */
+export type CorrectionOutcome = "saved" | "already" | "skipped" | "failed";
+/** The log is cut to its newest rows once it passes this many bytes (the routing log has no cap; this one holds what Nick said, so it gets one). */
+export declare const LEARNING_LOG_MAX_BYTES: number;
+/** A turn that never reached the detector (a spoken turn, another flow owned it): log that, and why. No message text. Never throws. */
+export declare function logCorrectionNotAttempted(stateDir: string | undefined, reason: string, who: {
+    message: string;
+    sessionKey?: string | undefined;
+}, now?: () => number): void;
+/** Reads the message and, if it is a lasting correction, keeps it (capped, never twice). Never throws; reports what happened, and logs every attempt. */
 export declare function learnCorrection(message: string, o: {
     run: RememberRun;
     stateDir?: string;
     sessionKey?: string;
     offered?: string;
     userMdPath?: string;
-}): Promise<"saved" | "already" | "skipped" | "failed">;
+    now?: () => number;
+}): Promise<CorrectionOutcome>;

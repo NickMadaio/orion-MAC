@@ -240,6 +240,8 @@ export declare function resultText(result: unknown): string;
 export declare function canonicalCall(toolName: string, params: unknown): string;
 /** The worker's instructions for this job. */
 export declare function instructionsFor(decision: Decision | undefined, message: string): string;
+/** What he is told when the slim prompt was not ready in time (the host would otherwise send the 17-19k-token workspace prompt to the 9B). */
+export declare const PROMPT_NOT_READY_LINE = "I couldn't prepare that request. Please try again.";
 export declare const LOOK_IT_UP = "Your manual and his memory live in his brain; you only see a small part of it here. When you need something that is not in front of you \u2014 how a script works, a scheduling rule, dates, his routines, people, preferences, what was decided before \u2014 look it up first with exec: /Users/nickmadaio/Desktop/ORION/scripts/orion-brain search \"<words>\", or read \"ORION Manual - Index\" for the list of manual sections, then read \"<title>\". Never guess a fact about Nick or a command's syntax that you could look up.";
 /** Brain search for the message, trimmed to the best few matches (pre-fetched while the front desk decides). */
 export declare function brainSnippets(output: string, maxChars?: number): string;

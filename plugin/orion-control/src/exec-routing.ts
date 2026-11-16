@@ -55,9 +55,13 @@ export const TOOL_IDS = new Set([
   "browser", "apply_patch", "process", "image",
 ]);
 
+/** Web tools are denied for Ollama models (tools.byProvider.ollama.deny), so the local model is never told it has them. */
+const WEB_UNAVAILABLE = "web search and fetching a page are not available here. Say plainly that you can't look that up online right now; do not retry it another way.";
+const WEB_TOOL_IDS = new Set(["web_search", "web_fetch"]);
+
 /** Programs that are refused on purpose, each with somewhere to go instead. */
 const REDIRECTS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/^curl\b|^wget\b/, "`web_fetch` fetches a URL and `web_search` searches the web. Both are available to you; neither needs the shell."],
+  [/^curl\b|^wget\b/, WEB_UNAVAILABLE],
   [/^vm_stat\b|^top\b|^iostat\b/, "the `system_status` action inside `orion_task_run` reports memory, battery and load."],
   [/^pbpaste\b|^pbcopy\b/, "there is no clipboard capability yet. Say so plainly rather than trying another command."],
   [/^gog\b/, "never call `gog` directly — use the full path to `scripts/orion-gmail-latest` or `scripts/orion-gmail-search`."],
@@ -110,6 +114,7 @@ export function routeForDoomedExec(command: string): ExecRoute | undefined {
   }
 
   // A host tool id sent to the shell.
+  if (WEB_TOOL_IDS.has(base)) return { reason: WEB_UNAVAILABLE.charAt(0).toUpperCase() + WEB_UNAVAILABLE.slice(1) };
   if (TOOL_IDS.has(base)) {
     return {
       reason:

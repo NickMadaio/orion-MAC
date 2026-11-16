@@ -44,8 +44,12 @@ describe("routeForDoomedExec: the first refusal carries the route", () => {
     expect(routeForDoomedExec("session_status")?.reason).toContain("not a shell command");
   });
 
-  it("routes curl to web_fetch rather than refusing flatly", () => {
-    expect(routeForDoomedExec("curl https://example.com")?.reason).toContain("web_fetch");
+  it("never tells the local model it has web search or fetch (config denies them for Ollama)", () => {
+    for (const cmd of ["curl https://example.com", "wget https://example.com", "web_search weather", "web_fetch https://example.com"]) {
+      const reason = routeForDoomedExec(cmd)?.reason ?? "";
+      expect(reason, cmd).not.toMatch(/available to you|already have|Call the tool directly|fetches a URL|searches the web/);
+      expect(reason, cmd).toMatch(/not available|can't|cannot/i);
+    }
   });
 
   it("routes the deliberately-withheld programs to their owners", () => {

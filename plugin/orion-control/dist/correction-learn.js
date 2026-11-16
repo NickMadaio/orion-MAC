@@ -23,7 +23,7 @@
  "when"). Nothing is captured inside an evaluation (the eval-mode marker) or any session that is not Nick's (isNickSession).
  Saved rules are capped (rule-cap.ts).
 */
-import { readFileSync, statSync } from "node:fs";
+import { appendFileSync, chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isCrisis, touchesLifeOrDeath } from "./distress.js";
 import { readPreference } from "./preference-remember.js";
@@ -201,28 +201,82 @@ const readOr = (path) => { if (!path)
 catch {
     return null;
 } };
-/** Reads the message and, if it is a lasting correction, keeps it (capped, never twice). Never throws; reports what happened. */
+/** The log is cut to its newest rows once it passes this many bytes (the routing log has no cap; this one holds what Nick said, so it gets one). */
+export const LEARNING_LOG_MAX_BYTES = 256 * 1024;
+/** Cuts the file to the newest whole rows (about half the cap) when it has passed the cap. Never throws. */
+function capLog(file) {
+    try {
+        if (statSync(file).size <= LEARNING_LOG_MAX_BYTES)
+            return;
+        const text = readFileSync(file, "utf8");
+        const tail = text.slice(-Math.floor(LEARNING_LOG_MAX_BYTES / 2));
+        writeFileSync(file, tail.slice(tail.indexOf("\n") + 1), { mode: 0o600 });
+    }
+    catch { /* a missing file or a failed cut: nothing to cap */ }
+}
+/** What the log may hold about a turn that was not a correction: how long it was and which channel, never the words. */
+const trace = (message, sessionKey) => ({ chars: tidy(message).length, channel: sessionKey?.split(":")[2] ?? null, sessionKey: sessionKey ?? null });
+/** One row per attempt in <stateDir>/learning-attempts.jsonl (eval-learning-attempts.jsonl in an evaluation), the shape scripts/lib/brain/learning-log.mjs writes. Owner-only, capped. Never throws; a log failure goes to stderr. */
+function logCorrectionAttempt(stateDir, row, now, sandboxed) {
+    if (!stateDir)
+        return;
+    try {
+        mkdirSync(stateDir, { recursive: true });
+        const file = join(stateDir, sandboxed ? "eval-learning-attempts.jsonl" : "learning-attempts.jsonl");
+        appendFileSync(file, `${JSON.stringify({ at: new Date(now).toISOString(), kind: "correction", ...row })}\n`, { mode: 0o600 });
+        try {
+            chmodSync(file, 0o600);
+        }
+        catch { /* the mode only applies at creation; an older, wider file is tightened here, best effort */ }
+        capLog(file);
+    }
+    catch (e) {
+        try {
+            console.error(`learning-log: could not record the attempt (${e instanceof Error ? e.message : String(e)})`);
+        }
+        catch { /* nothing left to do */ }
+    }
+}
+/** A turn that never reached the detector (a spoken turn, another flow owned it): log that, and why. No message text. Never throws. */
+export function logCorrectionNotAttempted(stateDir, reason, who, now = Date.now) {
+    try {
+        logCorrectionAttempt(stateDir, { trigger: { ...trace(who.message, who.sessionKey), offered: null }, decision: "not-qualified", reason, write: { result: "skipped" } }, now(), inEvaluation(stateDir));
+    }
+    catch { /* logging must never reach the turn */ }
+}
+/** Reads the message and, if it is a lasting correction, keeps it (capped, never twice). Never throws; reports what happened, and logs every attempt. */
 export async function learnCorrection(message, o) {
-    if (!isNickSession(o.sessionKey) || inEvaluation(o.stateDir))
-        return "skipped";
+    const at = (o.now ?? Date.now)();
+    const sandboxed = inEvaluation(o.stateDir);
+    // Only a turn that qualified as a correction keeps its words; every other turn (crisis text included) keeps a count and a channel.
+    const log = (decision, result, extra) => {
+        const trigger = decision === "qualified" ? { message: tidy(message).slice(0, MAX_SAID), sessionKey: o.sessionKey ?? null, offered: o.offered ?? null } : { ...trace(message, o.sessionKey), offered: o.offered ?? null };
+        logCorrectionAttempt(o.stateDir, { trigger, decision, ...extra }, at, sandboxed);
+        return result;
+    };
+    if (!isNickSession(o.sessionKey))
+        return log("not-qualified", "skipped", { reason: "not Nick's session", write: { result: "skipped" } });
+    if (sandboxed)
+        return log("not-qualified", "skipped", { reason: "evaluation in progress (eval-mode marker)", write: { result: "skipped" } });
     const c = readCorrection(message, o.offered ? { offered: o.offered } : {});
     if (!c)
-        return "skipped";
+        return log("not-qualified", "skipped", { reason: "no lasting-correction pattern matched (readCorrection returned nothing)", write: { result: "skipped" } });
+    const rule = { kind: c.kind, fact: c.fact };
     if (hasRule(readOr(o.userMdPath), c.fact))
-        return "already";
+        return log("qualified", "already", { rule, write: { result: "already" } });
     try {
         const out = await o.run(["--user", `${c.fact}.`]);
         if (out.code !== 0)
-            return "failed";
+            return log("qualified", "failed", { rule, write: { result: "error", error: `orion-remember exited non-zero: ${out.stdout.trim().slice(0, 300)}` } });
         if (/already remembered/i.test(out.stdout))
-            return "already";
+            return log("qualified", "already", { rule, write: { result: "already" } });
         if (!/\bremembered\b/i.test(out.stdout))
-            return "failed";
+            return log("qualified", "failed", { rule, write: { result: "error", error: `unexpected orion-remember output: ${out.stdout.trim().slice(0, 300)}` } });
         if (o.userMdPath)
             enforceRuleCap(o.userMdPath, o.stateDir);
-        return "saved";
+        return log("qualified", "saved", { rule, write: { result: "ok" } });
     }
-    catch {
-        return "failed";
+    catch (e) {
+        return log("qualified", "failed", { rule, write: { result: "error", error: e instanceof Error ? e.message : String(e) } });
     }
 }
