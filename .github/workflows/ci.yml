@@ -38,7 +38,7 @@ jobs:
   source:
     name: source checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,6 +64,21 @@ jobs:
         # `ci`, never `install` — the same rule Phase 51 applies to Orion.
         run: npm ci
 
+      - name: build the plugin and check the committed dist is current
+        # The runner has no installed plugin, and three steps below import the
+        # COMMITTED dist (living documents, replay, the lock/memory scripts). Build
+        # it fresh, then fail if any src-derived .js differs from what is committed:
+        # a stale dist means the code under test is not the code in src/.
+        working-directory: plugin/orion-control
+        run: |
+          npm run build
+          if [ -n "$(git status --porcelain -- 'dist/*.js')" ]; then
+            echo "committed dist is stale or incomplete; run 'npm run build' in plugin/orion-control and commit dist/"
+            git status --porcelain -- 'dist/*.js'
+            git diff --stat -- 'dist/*.js' | tail -20
+            exit 1
+          fi
+
       - name: security invariants
         # FIRST, and on its own step so a failure is unmissable in the run list.
         # These are the adversarial cases: the approval gate, the trust
@@ -74,6 +89,15 @@ jobs:
       - name: unit and integration tests
         working-directory: plugin/orion-control
         run: npm test
+
+      - name: node script tests
+        # tests/ci-node-tests.txt is the allowlist; tests/ci-node-tests.skip.txt names
+        # every file left out, with the reason. The runner fails first if a test file
+        # is on neither list, so a new test cannot silently escape CI.
+        # TZ is Nick's: several tests build October dates in local time (BST).
+        env:
+          TZ: Europe/London
+        run: node scripts/ci-node-tests.mjs run
 
       - name: replay regression guard
         # Nick's real turns, anonymised, through the real routing with recorded model outputs. Fails only for a case

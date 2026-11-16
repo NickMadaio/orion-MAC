@@ -1,0 +1,7 @@
+# Node test files that CI does not run. One line each: <path> <class> <few words of reason>
+# Classes: a = Mac-only by nature, b = needs ~/.openclaw or /Users paths, c = time-of-day/timezone,
+#          d = failing, flaky or not yet committed (needs a human look).
+# Every tests/*.test.mjs must be in tests/ci-node-tests.txt or here: node scripts/ci-node-tests.mjs check
+tests/agentic-awake.test.mjs a spawns a real macOS caffeinate -w process
+tests/agentic-halts.test.mjs d process-kill timing; flaky under load and hangs when sandboxed
+tests/mail-hardening.test.mjs d 400 ms process-group timeout race; failed once under load
