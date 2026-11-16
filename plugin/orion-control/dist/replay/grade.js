@@ -12,6 +12,8 @@ const WRITE = /\b(?:add|move|late|drop|clear|log|set|start|extend|resize|swap|sk
 /** A script call that changes something (a read like show/status/--dry-run is not one). */
 export const writes = (calls) => calls.some((c) => !/^(?:show|status|read|list)\b/.test(c.args[0] ?? "") && !c.args.includes("--dry-run") && (c.script.startsWith("tool:") || WRITE.test(argLine(c))));
 const addressed = (ask, o) => (ask.reply ?? []).some((src) => re(src).test(o.reply)) || (ask.call ? seen(o, ask.call.script, ask.call.args) : false);
+const SILENT = /^\s*(?:…|\.{3,})?\s*$/;
+const SILENT_SHAPES = new Set(["bare-ellipsis", "empty"]);
 export function gradeOutcome(expect, o) {
     const out = [];
     if (expect.route !== undefined && o.route !== expect.route)
@@ -42,8 +44,13 @@ export function gradeOutcome(expect, o) {
     for (const src of expect.promptLacks ?? [])
         if (re(src).test(o.workerPrompt ?? ""))
             out.push(`worker prompt has /${src}/`);
+    // A deliberate ignore (expect.route "quiet") is silent: the bare dots are the silence marker, not a banned shape. Anything else said fails.
+    const quiet = expect.route === "quiet";
+    if (quiet && !SILENT.test(o.reply))
+        out.push("quiet turn must stay silent");
     for (const shape of shapesIn(o.reply, expect.banned))
-        out.push(`banned shape: ${shape}`);
+        if (!(quiet && SILENT_SHAPES.has(shape)))
+            out.push(`banned shape: ${shape}`);
     if (expect.readOnly && writes(o.scripts))
         out.push("wrote something on a read-only turn");
     return out;

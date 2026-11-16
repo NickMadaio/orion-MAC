@@ -3081,5 +3081,523 @@
     ""
    ]
   }
+ },
+ {
+  "id": "rw2-ignore-bare-okay",
+  "say": "okay",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-22T16:05",
+  "intent": "a press-to-talk capture that is not a request (fragment, overheard speech or a bare acknowledgement); silence or a one-line ack is right, an error line is not",
+  "expect": {
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": [
+    "…",
+    "…"
+   ]
+  },
+  "prior": [
+   {
+    "say": "how long does cooked rice keep in the fridge",
+    "recorded": {
+     "desk": {
+      "move": "answer",
+      "answer": "About four days."
+     },
+     "worker": "Cooked rice keeps about four days in the fridge."
+    }
+   }
+  ]
+ },
+ {
+  "id": "rw2-unclear-ack-to-heads-up",
+  "say": "probably a decent plan",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-19T15:38",
+  "outreach": "Heads up 4:30 PM, a workshop. Starts in 52m. Wrap up what you are on.",
+  "intent": "mumbled fragment after a push; may be an answer or may be nothing",
+  "expect": {
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it",
+    "keep you on track",
+    "i'?ll (remind|ping|nudge)"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": "Got it. I'll keep you on track for the 4:30 PM workshop."
+  },
+  "expectFail": {
+   "why": "G3 promise without action: the worker promises to keep him on track for an event, a behaviour it does not have"
+  }
+ },
+ {
+  "id": "rw2-already-there-answers-the-push",
+  "say": "im at the library already, showed up early",
+  "now": "2026-10-21T14:10",
+  "surface": "mac",
+  "outreach": "You should be heading out now, a seminar is at 3:15 PM. Go, and I'll sort the rest.",
+  "intent": "tells ORION he is already where he needs to be; the leave-now push was wrong for him",
+  "expect": {
+   "replyLacks": [
+    "what time or how long",
+    "haven'?t changed anything",
+    "say it again"
+   ],
+   "replyHas": [
+    "library|early|ahead|good|great|nice|sorted"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "answer",
+    "answer": "Nice. You're ahead of the schedule for that seminar."
+   },
+   "worker": "Nice. You're ahead of the schedule for that seminar."
+  }
+ },
+ {
+  "id": "rw2-ui-not-showing-is-not-promised-fixed",
+  "say": "hey orion the sidebar stayed hidden though you replied out loud",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-24T09:12",
+  "intent": "a bug report about the app (a panel did not appear on a voice press)",
+  "expect": {
+   "replyLacks": [
+    "(just a moment|one moment|hang on|give me a sec).{0,40}ui",
+    "(getting|bringing|pulling).{0,20}ui",
+    "get the ui ready"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "answer",
+    "answer": "Sorry about that, I'm here."
+   },
+   "worker": "I'm here. Just a moment to get the UI ready."
+  }
+ },
+ {
+  "id": "rw2-weather-today-spoken",
+  "say": "orion wait scrap that, how's the weather looking this afternoon",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-24T09:20",
+  "intent": "weather today, after a self-correction preamble",
+  "expect": {
+   "replyHas": [
+    "degrees fahrenheit"
+   ],
+   "replyLacks": [
+    "°",
+    "celsius",
+    "\\bF\\b"
+   ]
+  },
+  "recorded": {
+   "desk": {
+    "move": "tool",
+    "tool": "weather",
+    "args": {
+     "days": "1"
+    },
+    "say": "Checking today's weather."
+   },
+   "worker": "It's partly cloudy in town right now, with a high of 61 degrees Fahrenheit and a low of 48. Rain is likely from 4 PM to 8 PM, so bring an umbrella if you're heading out later.",
+   "obey": "partly cloudy, 58 degrees Fahrenheit in your city now. Today: a high of 61 degrees Fahrenheit and a low of 48, rain likely 4 PM to 8 PM (up to 40%)."
+  }
+ },
+ {
+  "id": "rw2-repeat-that-replays-last-reply",
+  "say": "come again, what was that",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-24T09:23",
+  "prior": [
+   {
+    "say": "what's the weather like today",
+    "recorded": {
+     "desk": {
+      "move": "tool",
+      "tool": "weather",
+      "args": {
+       "days": "1"
+      },
+      "say": "Checking today's weather."
+     },
+     "worker": "It's partly cloudy right now, with a high of 61 degrees Fahrenheit and a low of 48. Rain is likely from 4 PM to 8 PM."
+    }
+   }
+  ],
+  "intent": "asks for the last reply again",
+  "expect": {
+   "replyHas": [
+    "partly cloudy",
+    "61 degrees"
+   ],
+   "calls": [],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "escalate",
+    "tier": "standard",
+    "say": "One moment."
+   },
+   "worker": "It's partly cloudy right now, with a high of 61 degrees Fahrenheit and a low of 48. Rain is likely from 4 PM to 8 PM."
+  }
+ },
+ {
+  "id": "rw2-open-youtube",
+  "say": "open youtube",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-26T17:44",
+  "intent": "open a site in the browser",
+  "expect": {
+   "replyHas": [
+    "youtube"
+   ],
+   "replyLacks": [
+    "isn'?t found",
+    "not found",
+    "can'?t",
+    "search"
+   ]
+  },
+  "recorded": {
+   "desk": {
+    "move": "tool",
+    "tool": "browser",
+    "args": {
+     "url": "youtube.com",
+     "browser": ""
+    }
+   },
+   "obey": "Opened https://www.youtube.com.",
+   "worker": "Opened youtube.com."
+  }
+ },
+ {
+  "id": "rw2-open-notes-after-filler",
+  "say": "wait, could you um pull up notes for me",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-27T11:02",
+  "intent": "open an app, with filler words and a 'wait' that is not a refusal",
+  "expect": {
+   "replyHas": [
+    "notes"
+   ],
+   "replyLacks": [
+    "can'?t",
+    "couldn'?t",
+    "not found",
+    "which"
+   ]
+  },
+  "recorded": {
+   "desk": {
+    "move": "escalate",
+    "tier": "standard",
+    "say": "One moment."
+   },
+   "tools": [
+    {
+     "toolName": "tool_call",
+     "params": {
+      "id": "openclaw:orion-control:orion_task_run",
+      "args": {
+       "steps": [
+        {
+         "action": "app_open",
+         "application": "Notes"
+        }
+       ]
+      }
+     },
+     "result": "Opened Notes."
+    }
+   ],
+   "worker": "I opened Notes for you."
+  }
+ },
+ {
+  "id": "rw2-start-focus-session-late-night",
+  "say": "start a focus session",
+  "surface": "mac",
+  "now": "2026-10-22T22:50",
+  "outreach": "Bed at 11:30 PM. A seminar at 3:15 PM tomorrow. Start wrapping up.",
+  "intent": "starts a focus session right after a bedtime push",
+  "expect": {
+   "calls": [
+    {
+     "script": "tool:exec",
+     "args": "orion-session start"
+    }
+   ],
+   "replyHas": [
+    "focus session"
+   ],
+   "replyLacks": [
+    "didn'?t actually",
+    "nothing was started"
+   ]
+  },
+  "recorded": {
+   "desk": {
+    "move": "escalate",
+    "tier": "standard",
+    "say": "One moment."
+   },
+   "tools": [
+    {
+     "toolName": "exec",
+     "params": {
+      "command": "orion-session start \"focus\""
+     },
+     "result": "started"
+    }
+   ],
+   "worker": "Your focus session is running: block 1 of 3, 40 minutes. Chrome is allowed."
+  }
+ },
+ {
+  "id": "rw2-status-while-session-paused-for-days",
+  "say": "is there a focus session going",
+  "surface": "mac",
+  "now": "2026-10-24T14:05",
+  "intent": "asks the state of a focus session that was paused five days ago and never ended",
+  "seed": {
+   "focus-state.json": {
+    "session": {
+     "dayKey": "2026-10-19",
+     "status": "paused",
+     "events": [
+      {
+       "kind": {
+        "started": {}
+       }
+      },
+      {
+       "kind": {
+        "paused": {}
+       }
+      }
+     ]
+    }
+   }
+  },
+  "expect": {
+   "replyLacks": [
+    "block 1 of 3, 40 minutes",
+    "is running",
+    "you'?re in a focus session"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "escalate",
+    "tier": "standard",
+    "say": "One moment."
+   },
+   "worker": "You are in a focus session, block 1 of 3."
+  }
+ },
+ {
+  "id": "rw2-food-safety-question-spoken",
+  "say": "how long does cooked rice last in the fridge",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-23T18:30",
+  "intent": "a plain factual question; no tools",
+  "expect": {
+   "routeNot": [
+    "repeat-guard",
+    "quiet"
+   ],
+   "replyLacks": [
+    "came back with nothing",
+    "can'?t help",
+    "didn'?t answer"
+   ],
+   "noCalls": [
+    {
+     "script": "orion-log"
+    }
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "answer",
+    "answer": "About four days."
+   },
+   "worker": "Cooked rice keeps about four days in the fridge."
+  }
+ },
+ {
+  "id": "rw2-wake-word-alone",
+  "say": "orion",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-25T10:15",
+  "intent": "just the name",
+  "expect": {
+   "replyHas": [
+    "here|ready|listening|yes"
+   ],
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "answer",
+    "answer": "Ready when you are."
+   },
+   "worker": "Ready when you are."
+  }
+ },
+ {
+  "id": "rw2-ignore-fragment-there",
+  "say": "by the window",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-28T13:20",
+  "intent": "a press-to-talk capture that is not a request (fragment, overheard speech or a bare acknowledgement); silence is right, an error line is not",
+  "expect": {
+   "route": "quiet",
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": [
+    "…",
+    "…"
+   ]
+  }
+ },
+ {
+  "id": "rw2-ignore-two-words",
+  "say": "green tickets",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-29T08:50",
+  "intent": "a press-to-talk capture that is not a request (fragment, overheard speech or a bare acknowledgement); silence is right, an error line is not",
+  "expect": {
+   "route": "quiet",
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": [
+    "…",
+    "…"
+   ]
+  }
+ },
+ {
+  "id": "rw2-ignore-one-word",
+  "say": "marmalade",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-30T21:10",
+  "intent": "a press-to-talk capture that is not a request (fragment, overheard speech or a bare acknowledgement); silence is right, an error line is not",
+  "expect": {
+   "route": "quiet",
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": [
+    "…",
+    "…"
+   ]
+  }
+ },
+ {
+  "id": "rw2-ignore-overheard-sentence",
+  "say": "we can swap the order later",
+  "spoken": true,
+  "surface": "mac",
+  "now": "2026-10-30T22:40",
+  "intent": "a press-to-talk capture that is not a request (fragment, overheard speech or a bare acknowledgement); silence is right, an error line is not",
+  "expect": {
+   "route": "quiet",
+   "replyLacks": [
+    "came back with nothing",
+    "model returned nothing",
+    "didn'?t answer in time",
+    "say go and i'?ll retry",
+    "retry it"
+   ],
+   "readOnly": true
+  },
+  "recorded": {
+   "desk": {
+    "move": "ignore"
+   },
+   "worker": [
+    "…",
+    "…"
+   ]
+  }
  }
 ]

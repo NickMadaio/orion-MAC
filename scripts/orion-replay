@@ -10,6 +10,7 @@
                                     --corpus DIR  --only id,id  --desk MODEL  --worker MODEL  --label NAME  --compare BASELINE
    orion-replay --show ID           one case in full: reply, route, calls, failures
    orion-replay --list              the case ids
+   orion-replay --json              print ONE JSON line (counts + failing ids, no message text) instead of the text report
    orion-replay --strict            an unexpected pass (xpass) is an error too (to prune expectFail markers)
 
  The private corpus holds Nick's real words and never enters the repo. Build it with scripts/lib/replay/build-corpus.mjs.
@@ -50,6 +51,12 @@ if (has("--show")) {
   process.exit(0);
 }
 const summary = summarize(verdicts);
+const bad0 = summary.fail > 0 || (has("--strict") && summary.xpass > 0);
+if (has("--json")) {
+  const ids = (st) => verdicts.filter((v) => v.status === st).map((v) => v.id);
+  console.log(JSON.stringify({ ...summary, failing: ids("fail"), xpassing: ids("xpass"), ok: !bad0 }));
+  process.exit(bad0 ? 1 : 0);
+}
 const text = report(verdicts);
 if (text) console.log(text);
 console.log(`\norion-replay (deterministic): ${summaryLine(summary)}`);

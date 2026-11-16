@@ -41,6 +41,16 @@ describe("grader", () => {
         expect(gradeOutcome({ readOnly: true }, outcome({ reply: "ok", scripts: [{ script: "orion-workout", args: ["--text", "x"] }] }))).toHaveLength(1);
     });
 });
+describe("grader: a deliberate ignore", () => {
+    it("passes the silent marker only when the case expects route quiet", () => {
+        expect(gradeOutcome({ route: "quiet" }, outcome({ route: "quiet", reply: "…" }))).toEqual([]);
+        expect(gradeOutcome({}, outcome({ route: "quiet", reply: "…" }))).toEqual(["banned shape: bare-ellipsis"]);
+    });
+    it("fails a quiet case that says anything", () => {
+        expect(gradeOutcome({ route: "quiet" }, outcome({ route: "quiet", reply: "The model returned nothing." }))).toEqual(["quiet turn must stay silent"]);
+        expect(gradeOutcome({ route: "quiet" }, outcome({ route: "worker", reply: "…" }))).toEqual(["route: wanted quiet, got worker"]);
+    });
+});
 describe("replay: Nick's real turns, anonymised (deterministic layer)", () => {
     const cases = readCases(REPO_CASES);
     it("has every one of the 41 tube-audit turns", () => {
