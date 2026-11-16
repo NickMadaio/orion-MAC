@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decide, frontDeskRequest, keepWarm } from "./front-desk.js";
+import { decide, frontDeskRequest, keepWarm, FRONT_DESK_MAX_TOKENS } from "./front-desk.js";
 import { FRONT_DESK_MODEL, FRONT_DESK_SYSTEM } from "./front-desk-prompt.js";
 const reply = (content) => async () => new Response(JSON.stringify({ message: { content } }), { status: 200 });
 describe("front desk", () => {
@@ -12,6 +12,12 @@ describe("front desk", () => {
         expect(body.options.temperature).toBe(0);
         expect(body.think).toBe(false);
         expect(body.stream).toBe(false);
+    });
+    it("2026-11-16: output is capped (the one JSON decision needs about 70 tokens) and the load options are the warm-up's", () => {
+        const body = frontDeskRequest({ message: "hi", clock: "Fri 21:40" });
+        expect(FRONT_DESK_MAX_TOKENS).toBe(400);
+        expect(body.options).toMatchObject({ num_predict: 400, num_ctx: 16384 });
+        expect(body.keep_alive).toBe("24h");
     });
     it("2026-10-30: a one-line context (his state, heard by the microphone) goes after the clock, the frozen system prompt is unchanged", () => {
         const body = frontDeskRequest({ message: "no class today btw", clock: "Fri 13:20", context: "Nick now: should be MKTG2201; next ECON1115 at 3:30 PM." });
@@ -73,5 +79,50 @@ describe("keepWarm", () => {
     it("never throws when Ollama is down", async () => {
         const fetchImpl = (async () => { throw new Error("ECONNREFUSED"); });
         expect(await keepWarm(models, { fetchImpl })).toEqual([]);
+    });
+});
+// 2026-11-16: the gateway's embedding model (memory search) is a third model; with two slots it evicts the idle 4B. The reloaded runner has an empty
+// prompt cache, so the next front-desk call re-read all 2.5k tokens (2.5 s against 1.8 s). A reload by keepWarm now also reads the frozen prompt.
+describe("keepWarm primes the front desk's prompt after reloading it", () => {
+    const rig = (loaded) => {
+        const calls = [];
+        const fetchImpl = (async (url, init) => {
+            if (String(url).endsWith("/api/ps"))
+                return { ok: true, json: async () => ({ models: loaded }) };
+            calls.push({ url: String(url), body: JSON.parse(init?.body ?? "{}") });
+            return { ok: true, json: async () => ({}) };
+        });
+        return { fetchImpl, calls };
+    };
+    const models = [{ model: FRONT_DESK_MODEL, numCtx: 16384 }, { model: "qwen3.5:9b", numCtx: 32768 }];
+    it("sends the frozen system prompt with one output token when the front desk was cold", async () => {
+        const { fetchImpl, calls } = rig([{ name: "qwen3.5:9b", context_length: 32768 }]);
+        await keepWarm(models, { fetchImpl, primeDesk: true });
+        const prime = calls.find((c) => c.url.endsWith("/api/chat"));
+        expect(prime?.body.model).toBe(FRONT_DESK_MODEL);
+        expect(prime?.body.messages[0]).toEqual({ role: "system", content: FRONT_DESK_SYSTEM });
+        expect(prime?.body.options).toMatchObject({ num_predict: 1, num_ctx: 16384 });
+        expect(prime?.body.keep_alive).toBe("24h");
+        expect(calls.filter((c) => c.url.endsWith("/api/generate")).map((c) => c.body.model)).toEqual([FRONT_DESK_MODEL]);
+    });
+    it("sends nothing when both models are warm, and nothing unless asked", async () => {
+        const warm = rig([{ name: FRONT_DESK_MODEL, context_length: 16384 }, { name: "qwen3.5:9b", context_length: 32768 }]);
+        expect(await keepWarm(models, { fetchImpl: warm.fetchImpl, primeDesk: true })).toEqual([]);
+        expect(warm.calls).toEqual([]);
+        const cold = rig([]);
+        await keepWarm(models, { fetchImpl: cold.fetchImpl });
+        expect(cold.calls.some((c) => c.url.endsWith("/api/chat"))).toBe(false);
+    });
+    it("a failed prime never throws and still reports what it loaded", async () => {
+        const calls = [];
+        const fetchImpl = (async (url) => {
+            if (String(url).endsWith("/api/ps"))
+                return { ok: true, json: async () => ({ models: [] }) };
+            calls.push(String(url));
+            if (String(url).endsWith("/api/chat"))
+                throw new Error("boom");
+            return { ok: true, json: async () => ({}) };
+        });
+        expect(await keepWarm(models, { fetchImpl, primeDesk: true })).toEqual([FRONT_DESK_MODEL, "qwen3.5:9b"]);
     });
 });

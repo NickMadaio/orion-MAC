@@ -71,6 +71,12 @@ export type LocalRoutingOptions = {
     modelWarm?: () => Promise<unknown>;
     /** How long to wait after warming before asking again (default 1500 ms; tests shorten it). */
     warmWaitMs?: number;
+    /** 2026-11-16 (warm-after-turn.ts): run a little after each turn ends, never while a turn runs. Default when `warm` is not false:
+     *  keepWarm on both local models with primeDesk (a reloaded front desk re-reads its frozen prompt). Tests pass a spy. */
+    afterTurnWarm?: () => unknown;
+    /** Wait after the last turn before that warm (default 20 s) and the least gap between two (default 60 s); tests shorten them. */
+    afterTurnDelayMs?: number;
+    afterTurnMinGapMs?: number;
     /** Replays a message queued while the model was down, in its session, and delivers the reply (index.ts). */
     replay?: (row: QueuedMessage) => Promise<boolean>;
     /** Runs orion-checkin with these arguments (index.ts wires the real script); a reply to a start line sets its check-in through it (2026-10-23). */

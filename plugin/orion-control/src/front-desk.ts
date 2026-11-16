@@ -20,6 +20,9 @@ import { FRONT_DESK_MODEL, FRONT_DESK_SYSTEM, FRONT_DESK_TEMPERATURE } from "./f
 /** One context size for every call and the warm-up: a different num_ctx makes Ollama reload the model. */
 export const FRONT_DESK_CTX = 16384;
 
+/** The one JSON decision is about 70 tokens (measured 2026-11-16); a cap stops a runaway generation. A cut-off JSON is unparsable and falls back to the worker. */
+export const FRONT_DESK_MAX_TOKENS = 400;
+
 export const MOVES = ["answer", "tool", "escalate", "ask", "ignore"] as const;
 export type Move = (typeof MOVES)[number];
 import { guardIntake } from "./desk-intake-guard.js";
@@ -63,7 +66,7 @@ export function frontDeskRequest({ message, clock, history = [], context }: Fron
     stream: false,
     think: false,
     format: SCHEMA,
-    options: { temperature: FRONT_DESK_TEMPERATURE, num_ctx: FRONT_DESK_CTX },
+    options: { temperature: FRONT_DESK_TEMPERATURE, num_ctx: FRONT_DESK_CTX, num_predict: FRONT_DESK_MAX_TOKENS },
     keep_alive: "24h",
     messages: [{ role: "system", content: FRONT_DESK_SYSTEM }, { role: "user", content }],
   };
@@ -107,9 +110,13 @@ export async function decide(input: FrontDeskInput, { fetchImpl = fetch, baseUrl
  * Keep the local models in memory at the context size each is called with (2026-10-14). Only
  * what is missing — or loaded at another num_ctx, which Ollama would reload on the next call —
  * is loaded. Returns the models it loaded. Never throws.
+ *
+ * primeDesk (2026-11-16): a reloaded front desk has an empty prompt cache, and the next real call
+ * re-reads its 2.5k-token frozen prompt (2.5 s against 1.8 s measured). After reloading it, one
+ * request with the same system prompt and one output token puts that prefix back.
  */
 export async function keepWarm(models: Array<{ model: string; numCtx: number }>,
-  { fetchImpl = fetch, baseUrl = "http://127.0.0.1:11434" }: { fetchImpl?: typeof fetch; baseUrl?: string } = {}): Promise<string[]> {
+  { fetchImpl = fetch, baseUrl = "http://127.0.0.1:11434", primeDesk = false }: { fetchImpl?: typeof fetch; baseUrl?: string; primeDesk?: boolean } = {}): Promise<string[]> {
   try {
     const ps = await fetchImpl(`${baseUrl}/api/ps`).then((r) => r.json()) as { models?: Array<{ name?: string; model?: string; context_length?: number }> };
     const loaded = ps.models ?? [];
@@ -118,6 +125,16 @@ export async function keepWarm(models: Array<{ model: string; numCtx: number }>,
       await fetchImpl(`${baseUrl}/api/generate`, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ model, keep_alive: "24h", options: { num_ctx: numCtx } }) });
     }
+    if (primeDesk && cold.some((m) => m.model === FRONT_DESK_MODEL)) await primeFrontDesk(fetchImpl, baseUrl);
     return cold.map((m) => m.model);
   } catch { return []; }
+}
+
+/** One output token on the real system prompt: reads the frozen prefix into the cache. Never throws. */
+async function primeFrontDesk(fetchImpl: typeof fetch, baseUrl: string): Promise<void> {
+  try {
+    const body = frontDeskRequest({ message: "hi", clock: "Mon 12:00" });
+    await fetchImpl(`${baseUrl}/api/chat`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, options: { ...body.options, num_predict: 1 } }) });
+  } catch { /* a missed prime only costs the next call its cache */ }
 }

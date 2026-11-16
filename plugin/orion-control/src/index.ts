@@ -80,6 +80,7 @@ import {
   HarnessProvenance,
   type ModelTaskGraph,
   type ProvenancePolicy,
+  transcriptSessionStamp,
 } from "./provenance.js";
 import {
   activeTools,
@@ -709,12 +710,19 @@ async function resolveProfile(statePath: string): Promise<{
  * missing or unreadable transcript has to fail closed like any other absent
  * provenance source rather than error out of the tool call.
  */
-async function hydrateFromTranscript(config: {
-  trustAllowTranscriptSource?: boolean;
-  trustTranscriptAgent?: string;
-}): Promise<void> {
+async function hydrateFromTranscript(
+  config: {
+    trustAllowTranscriptSource?: boolean;
+    trustTranscriptAgent?: string;
+  },
+  toolCallId?: string,
+): Promise<void> {
   if (config.trustAllowTranscriptSource === false) return;
-  if (provenance.hasUsableTurn()) return;
+  // Session-scoped (F3 review 6a): only a fresh hook turn from THIS tool call's
+  // session makes the transcript read unnecessary, and the read targets this
+  // session's own file when the host told us which one it is.
+  const binding = provenance.peekBinding(toolCallId);
+  if (provenance.hasUsableTurn(undefined, binding)) return;
   try {
     // Recent turns, not just the newest. A standing instruction ("when I say
     // lights out, close everything") lives in an earlier turn than the phrase
@@ -724,11 +732,13 @@ async function hydrateFromTranscript(config: {
       ...(config.trustTranscriptAgent
         ? { agent: config.trustTranscriptAgent }
         : {}),
+      ...(binding?.sessionId ? { sessionId: binding.sessionId } : {}),
     });
     for (const turn of turns) {
       provenance.recordTranscriptTurn({
         content: turn.content,
         sessionId: turn.sessionId,
+        ...transcriptSessionStamp(turn, binding),
         receivedAt: turn.at,
       });
     }
@@ -856,7 +866,7 @@ async function runAuthorizedGraph(
   // text. Recover the text from the transcript the HOST wrote — the model
   // cannot author a `role: "user"` entry there. Skipped when a hook already
   // provided a turn.
-  await hydrateFromTranscript(config);
+  await hydrateFromTranscript(config, context.toolCallId);
   const anchor = provenance.resolve(context.toolCallId, trustPolicy(config));
   const authorized = authorizeTaskGraph(normalizedGraph, anchor);
   // Merge what the harness saw Orion read into the graph's own inputs, as
@@ -1701,6 +1711,7 @@ export function installProvenanceHooks(api: ProvenanceHostApi): void {
           field(event, "toolCallId") ?? field(hookContext, "toolCallId"),
         runId,
         sessionKey,
+        sessionId: field(event, "sessionId") ?? field(hookContext, "sessionId"),
       });
     }
   });

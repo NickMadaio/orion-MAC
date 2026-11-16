@@ -44,6 +44,16 @@ const GIT_BAD_ANYWHERE = ["--upload-pack", "--receive-pack", "--exec", "--ext-di
 const GIT_BAD_SUBCOMMANDS = new Set(["difftool", "mergetool", "filter-branch", "daemon", "instaweb", "web--browse", "help"]);
 const GIT_CONFIG_READ = new Set(["--get", "--get-all", "--get-regexp", "--list", "-l", "--show-origin", "--show-scope"]);
 const APPROVE_REASON = "That would let you approve your own request, so it is not yours to run: only Nick approves, in his own words or in the app. Tell him what is waiting and let him approve it.";
+/*
+ Environment that changes what a tool executes or loads (F3 review 6b, 2026-11-16). The rules above only see argv;
+ `RIPGREP_CONFIG_PATH=/tmp/c rg x` gives rg a --pre from a file, `GIT_EXTERNAL_DIFF=/tmp/x git diff` runs a program,
+ and the loader/startup variables do the same for anything. Assigning one of these anywhere is refused; any NAME=value
+ in front of a ruled tool is refused too, since the rule cannot see what the variable changes.
+*/
+const DENY_ENV = /^(?:RIPGREP_CONFIG_PATH|GIT_[A-Z0-9_]*|LESSOPEN|LESSCLOSE|PAGER|EDITOR|VISUAL|PATH|NODE_OPTIONS|PYTHONSTARTUP|DYLD_[A-Z0-9_]*|LD_[A-Z0-9_]*|BASH_ENV|ENV|ZDOTDIR)$/;
+const ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
+const EXPORTERS = new Set(["export", "declare", "typeset", "readonly", "local", "setenv"]);
+const envReason = (name) => `That command sets the environment variable ${name}, which changes what the program runs or loads, and this tool cannot check it. Run the program plainly, with no NAME=value in front of it, and pass what you need as ordinary flags.`;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const WRAPPERS = new Set(["env", "xargs", "nice", "nohup", "time", "command", "exec", "sudo", "timeout", "builtin", "stdbuf", "caffeinate", "eval"]);
 const MAX_DEPTH = 4;
@@ -195,14 +205,42 @@ function gitRefused(args) {
         return flags.some((w) => w === "-x" || w === "--exec" || w.startsWith("--exec=") || /^-[a-zA-Z]*x/.test(w) && !w.startsWith("--"));
     return false;
 }
+const isRuled = (name) => name === "git" || name in RULES;
+/** The reason when this segment's environment assignments are not safe, otherwise undefined. */
+function envReasonForSegment(words, at, exe, args) {
+    const prefix = words.slice(0, at).map((w) => ASSIGN.exec(w)[1]);
+    const denied = prefix.find((name) => DENY_ENV.test(name));
+    if (denied)
+        return envReason(denied);
+    if (prefix.length > 0 && isRuled(exe))
+        return envReason(prefix[0]);
+    if (EXPORTERS.has(exe)) {
+        const named = args.map((w) => w.split("=", 1)[0]).find((name) => DENY_ENV.test(name));
+        if (named)
+            return envReason(named);
+    }
+    if (exe === "env") {
+        const assigned = args.filter((w) => ASSIGN.test(w)).map((w) => ASSIGN.exec(w)[1]);
+        const bad = assigned.find((name) => DENY_ENV.test(name));
+        if (bad)
+            return envReason(bad);
+        const tool = args.findIndex((w) => !w.startsWith("-") && !ASSIGN.test(w));
+        if (assigned.length > 0 && tool >= 0 && isRuled(baseName(args[tool])))
+            return envReason(assigned[0]);
+    }
+    return undefined;
+}
 function reasonForSegment(words, depth) {
     let at = 0;
-    while (at < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at]))
+    while (at < words.length && ASSIGN.test(words[at]))
         at++;
     const exe = baseName(words[at] ?? "");
+    const args = words.slice(at + 1);
+    const envRefusal = envReasonForSegment(words, at, exe, args);
+    if (envRefusal)
+        return envRefusal;
     if (exe === "")
         return undefined;
-    const args = words.slice(at + 1);
     if (exe === "git")
         return gitRefused(args) ? GIT_MESSAGE : undefined;
     const rule = RULES[exe];
@@ -248,14 +286,66 @@ function reasonForCommand(command, depth) {
 function squash(command) {
     return command.replace(/["'\\]/g, "").replace(/(?:\/\.)+(?=\/|$)/g, "").replace(/\/{2,}/g, "/");
 }
-function namesApproval(command) {
-    // Mac filesystems ignore case; fold compatibility forms (fullwidth letters and hyphens), other dashes and %xx escapes first.
-    const flat = squash(command)
+/** Mac filesystems ignore case; fold compatibility forms (fullwidth letters and hyphens), other dashes and %xx escapes. */
+function fold(command) {
+    return squash(command)
         .replace(/%([0-9a-fA-F]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)))
         .normalize("NFKC")
         .replace(/[\u2010-\u2015\u2212\uFE63]/g, "-")
         .toLowerCase();
+}
+function namesApproval(command) {
+    const flat = fold(command);
     return /orion-approve/.test(flat) || /\.openclaw\/orion-gate(?![\w-])/.test(flat) || /(?:^|[\s/=])orion-gate(?:\/|$|\s)/.test(flat);
+}
+/*
+ The other owner-only programs (F3 review 6b). orion-connect-admin is entirely Nick's switch, so naming it is refused
+ like orion-approve. orion-mode and orion-automation are not: ORION may read them and may tighten, so only the
+ owner-only uses are refused (scripts/orion-mode: naming a mode other than "contained" without --explain, since only
+ those can relax or widen; scripts/orion-automation: install). The words after each mention, up to the end of that
+ command, are what is checked, so `node .../orion-mode open --yes` and `sh -c 'orion-mode open'` are caught too.
+*/
+const CONNECT_ADMIN_REASON = "orion-connect-admin is Nick's own switch for connectors (which hosts and keys a connector may use), so it is not yours to run. Tell him the exact orion-connect-admin line to run himself.";
+const MODE_REASON = "Relaxing ORION's mode or widening its scope is Nick's act, so it is not yours to run. You may check it (orion-mode, orion-mode --json, orion-mode --explain <mode>) or tighten to orion-mode contained; tell Nick what you would change and let him run it.";
+const AUTOMATION_REASON = "Installing an automation is Nick's act, so it is not yours to run. Propose it (automation_propose), show him orion-automation simulate, and tell him to run orion-automation install himself.";
+const RELAXING_MODES = new Set(["guarded", "open", "sovereign"]);
+const MODE_VALUE_FLAGS = new Set(["--for", "--never", "--within", "--reason"]);
+/** The words after each mention of `name` (a whole program name), up to the end of that command. */
+function wordsAfter(flat, name) {
+    const out = [];
+    const re = new RegExp(`${name}(?![\\w-])`, "g");
+    for (let m = re.exec(flat); m; m = re.exec(flat)) {
+        const rest = flat.slice(m.index + m[0].length).split(/[|;&()`\n\r]/, 1)[0];
+        out.push(rest.split(/\s+/).filter((w) => w.length > 0 && !/^\d*[<>]/.test(w)));
+    }
+    return out;
+}
+const computed = (w) => /[$`*?[\]{}]/.test(w);
+function modeRelaxes(words) {
+    if (words.includes("--explain"))
+        return false;
+    for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (MODE_VALUE_FLAGS.has(w)) {
+            i++;
+            continue;
+        }
+        if (w.startsWith("-"))
+            continue;
+        if (computed(w) || RELAXING_MODES.has(w))
+            return true;
+    }
+    return false;
+}
+function ownerOnlyReason(command) {
+    const flat = fold(command);
+    if (/orion-connect-admin(?![\w-])/.test(flat))
+        return CONNECT_ADMIN_REASON;
+    if (wordsAfter(flat, "orion-mode").some(modeRelaxes))
+        return MODE_REASON;
+    if (wordsAfter(flat, "orion-automation").some((ws) => ws.some((w) => w === "install" || computed(w))))
+        return AUTOMATION_REASON;
+    return undefined;
 }
 const PLAIN_REASON = "That command uses shell quoting ($'...' or $\"...\") or character escapes that this tool cannot check safely. Write each argument plainly, in ordinary quotes, with no \\x or \\0 escapes.";
 /** True when `$'` or `$"` appears outside single quotes and outside double quotes (bash ANSI-C / locale quoting). Not decoded: refused. */
@@ -295,6 +385,12 @@ export function validateExecArgs(command) {
         return PLAIN_REASON;
     if (namesApproval(command))
         return APPROVE_REASON;
+    const ownerOnly = ownerOnlyReason(command);
+    if (ownerOnly)
+        return ownerOnly;
+    // ripgrep reads options (including --pre) from the file RIPGREP_CONFIG_PATH names; naming it anywhere is refused.
+    if (/ripgrep_config_path/.test(fold(command)))
+        return envReason("RIPGREP_CONFIG_PATH");
     if (/\\[xuU0-7]/.test(command) && (/approv|orion/i.test(command) || mentionsRuledTool(command)))
         return PLAIN_REASON;
     return reasonForCommand(command, 0);

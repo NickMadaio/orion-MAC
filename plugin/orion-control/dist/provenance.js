@@ -228,6 +228,7 @@ export class HarnessProvenance {
             receivedAt: record.receivedAt ?? this.now(),
             source: "session_transcript",
             ...optionalText("sessionId", record.sessionId),
+            ...optionalText("sessionKey", record.sessionKey),
         });
     }
     /**
@@ -237,9 +238,15 @@ export class HarnessProvenance {
      * `llm_input` do fire — the transcript is a fallback, never a substitute for
      * a stronger source.
      */
-    hasUsableTurn(withinMs = DEFAULT_POLICY.ttlMs) {
+    hasUsableTurn(withinMs = DEFAULT_POLICY.ttlMs, session) {
         const at = this.now();
-        return this.turns.some((turn) => turn.source !== "session_transcript" && at - turn.receivedAt <= withinMs);
+        return this.turns.some((turn) => turn.source !== "session_transcript" &&
+            at - turn.receivedAt <= withinMs &&
+            sameSession(turn, session));
+    }
+    /** The binding for a tool call, without consuming it (hydration needs its session). */
+    peekBinding(toolCallId) {
+        return toolCallId ? this.bindings.get(toolCallId) : undefined;
     }
     /** Bind a host-generated tool call id to the run that issued it. */
     bindToolCall(record) {
@@ -251,6 +258,7 @@ export class HarnessProvenance {
             boundAt: this.now(),
             ...optionalText("runId", record.runId),
             ...optionalText("sessionKey", record.sessionKey),
+            ...optionalText("sessionId", record.sessionId),
         });
         while (this.bindings.size > this.maxBindings) {
             const oldest = this.bindings.keys().next();
@@ -302,7 +310,12 @@ export class HarnessProvenance {
             anchor = pick(usable.filter((turn) => turn.runId === binding.runId && fresh(turn, effective.ttlMs)), "run");
         }
         if (!anchor && effective.allowSessionBinding && binding?.sessionKey) {
-            anchor = pick(usable.filter((turn) => turn.sessionKey === binding.sessionKey && fresh(turn, effective.ttlMs)), "session");
+            anchor = pick(usable.filter((turn) => 
+            // Transcript turns carry a session key only as a scoping stamp (6a);
+            // they stay in the `recent` tier and its shorter window, as before.
+            turn.source !== "session_transcript" &&
+                turn.sessionKey === binding.sessionKey &&
+                fresh(turn, effective.ttlMs)), "session");
         }
         if (!anchor && effective.allowRecentBinding) {
             /*
@@ -345,8 +358,16 @@ export class HarnessProvenance {
              Bounded on both ends: `recentWindowMs` by time, and `readRecentUserTurns`
              reads at most RECENT_TURN_LIMIT (8) turns, so "the conversation" stays a
              window rather than becoming a transcript.
+      
+             Scoped to the calling session (F3 review 6a, 2026-11-16). Widening the
+             window over Nick's words must not widen it over his CONVERSATIONS: a
+             turn said in one session used to anchor a tool call from any other
+             within ten minutes (a cron or mail-triage run could name a recipient Nick
+             gave elsewhere). A binding that knows its session now takes only that
+             session's turns; see `sameSession`. The app, phone and Discord share one
+             session key, so "say it on the phone, confirm on the Mac" still holds.
             */
-            anchor = pick(usable.filter((turn) => fresh(turn, effective.recentWindowMs)), "recent");
+            anchor = pick(usable.filter((turn) => sameSession(turn, binding) && fresh(turn, effective.recentWindowMs)), "recent");
         }
         const resolved = anchor ?? { turns: [], binding: "none" };
         this.lastBinding = resolved.binding;
@@ -385,6 +406,32 @@ function normalizeArtifactPath(value) {
         .replace(/^\.\//, "")
         .replace(/\/+$/, "")
         .toLowerCase();
+}
+/**
+ * May this turn anchor a tool call bound to `binding`'s session?
+ *
+ * A binding with no session at all keeps the old behaviour (nothing to compare).
+ * Otherwise the turn must carry a matching sessionKey, or failing that a matching
+ * sessionId; a turn with neither (a transcript turn read from the newest file,
+ * not this session's) does NOT match.
+ */
+function sameSession(turn, binding) {
+    if (!binding || (!binding.sessionKey && !binding.sessionId))
+        return true;
+    if (binding.sessionKey && turn.sessionKey)
+        return turn.sessionKey === binding.sessionKey;
+    if (binding.sessionId && turn.sessionId)
+        return turn.sessionId === binding.sessionId;
+    return false;
+}
+/**
+ * The session key to stamp on a hydrated transcript turn: the binding's key, but
+ * only when the file read WAS the bound session's own transcript.
+ */
+export function transcriptSessionStamp(turn, binding) {
+    return binding?.sessionId && binding.sessionKey && turn.sessionId === binding.sessionId
+        ? { sessionKey: binding.sessionKey }
+        : {};
 }
 function optionalText(key, value) {
     const text = normalizeText(value);

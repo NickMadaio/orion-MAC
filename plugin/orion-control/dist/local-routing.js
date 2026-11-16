@@ -45,6 +45,8 @@ import { execFile } from "node:child_process";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { workerSystemPrompt } from "./worker-prompt-order.js";
+import { createWarmAfterTurn } from "./warm-after-turn.js";
 import { decide, keepWarm, FRONT_DESK_CTX } from "./front-desk.js";
 import { FRONT_DESK_MODEL } from "./front-desk-prompt.js";
 import { BRAIN_INSTRUCTIONS, FOOD_TOOL, GENERAL_INSTRUCTIONS, SCHEDULING_INSTRUCTIONS, WORKER_MODEL, WORKOUT_TOOL, MOUSE_TOOL } from "./job-instructions.js";
@@ -800,9 +802,9 @@ export function registerLocalRouting(api, options) {
     const { logPath, decideImpl = (input) => decide(input, { timeoutMs: input.timeoutMs ?? DESK_TIMEOUT_MS }), clock = () => localClock(), finalizeWaitMs = 5000, workerProvider = "ollama", workerModel = WORKER_MODEL } = options;
     // Both local models stay loaded, at the context each is called with, checked every 5 minutes
     // (2026-10-14: the 9B was never warmed; a terminal run or another num_ctx unloaded them).
+    const warmModels = (() => { const models = [{ model: FRONT_DESK_MODEL, numCtx: FRONT_DESK_CTX }, { model: workerModel, numCtx: FORM_OPTIONS.num_ctx }]; return on ? models : models.slice(0, 1); })();
     if (options.warm !== false) {
-        const models = [{ model: FRONT_DESK_MODEL, numCtx: FRONT_DESK_CTX }, { model: workerModel, numCtx: FORM_OPTIONS.num_ctx }];
-        const warm = () => void keepWarm(on ? models : models.slice(0, 1));
+        const warm = () => void keepWarm(warmModels);
         warm();
         setInterval(warm, 5 * 60_000).unref?.();
     }
@@ -824,6 +826,17 @@ export function registerLocalRouting(api, options) {
     const ownPending = new Map();
     const nowMs = () => (options.now ?? (() => new Date()))().getTime();
     const runs = new Map();
+    // 2026-11-16 latency: the gateway embeds each finished turn (nomic-embed-text), and with two Ollama slots that load evicts the idle 4B
+    // (server.log 19:48:29 embed, 19:49:32 4B reload, desk 3.7 s against 1.9 s). Re-warm a little after a turn instead of waiting up to
+    // 5 minutes for the interval. Skipped while any turn started in the last 5 minutes is still open: Ollama serves one request at a time.
+    const afterTurnWarm = options.afterTurnWarm ?? (options.warm !== false ? () => keepWarm(warmModels, { primeDesk: true }) : undefined);
+    const afterTurn = afterTurnWarm ? createWarmAfterTurn(afterTurnWarm, {
+        ...(options.afterTurnDelayMs !== undefined ? { delayMs: options.afterTurnDelayMs } : {}),
+        ...(options.afterTurnMinGapMs !== undefined ? { minGapMs: options.afterTurnMinGapMs } : {}),
+        isBusy: () => { const cutoff = Date.now() - 5 * 60_000; for (const r of runs.values())
+            if (r.started > cutoff)
+                return true; return false; },
+    }) : undefined;
     /** Per session: his last message (stitched) and the scheduler changes it made. */
     const lastTurn = new Map();
     // w19 selffix: the chats whose last message from ORION was the fix offer ("now or later?"). Any other turn in that chat clears it.
@@ -2788,7 +2801,7 @@ export function registerLocalRouting(api, options) {
             const pushNote = pushed && asksWhy(run.message) ? `\n\n${whyNote(pushed.text)}` : pushed ? `\n\nHe is most likely answering what you sent him at ${clockOf(pushed.at)}: "${pushed.text.slice(0, 200)}". Act on that (book it, move it, start it, or ask which one first); never "didn't catch that".` : "";
             // H6 (r8b2, 2026-10-16): the worker's user message is only the rest of a cut-off request ("…cut off, this is the rest"); give it the whole.
             const joinedNote = run.stitched ? `[ORION: his request came in two parts. The whole request, joined: "${run.message.slice(0, 600)}". Answer that, not only the last part.]` : undefined;
-            return { systemPrompt: `${instructionsFor(run.settled, run.message)}\n\n${PRODUCTION_NOTES}\n\n${LOOK_IT_UP}${lookup ? `\n\n${LIVE_NOTE}` : ""}${ignoreNote}${pushNote}${brainFetched}${askNote}\n\n${card}${now}`, ...(joinedNote || run.pendingRefers ? { appendContext: [joinedNote, run.pendingRefers ? pendingNote(run.message, run.pendingRefers) : undefined].filter(Boolean).join("\n") } : {}),
+            return { systemPrompt: workerSystemPrompt({ stable: `${instructionsFor(run.settled, run.message)}\n\n${PRODUCTION_NOTES}\n\n${LOOK_IT_UP}`, card, perTurn: [lookup ? `\n\n${LIVE_NOTE}` : "", ignoreNote, pushNote, brainFetched, askNote], now }), ...(joinedNote || run.pendingRefers ? { appendContext: [joinedNote, run.pendingRefers ? pendingNote(run.message, run.pendingRefers) : undefined].filter(Boolean).join("\n") } : {}),
                 ...(run.outreach ? { prependContext: outreachNote(run.outreach, run.message) } : run.staleOutreachNote ? { prependContext: run.staleOutreachNote } : {}) };
         }), { timeoutMs: HOOK_TIMEOUT_MS });
     }
@@ -3105,7 +3118,7 @@ export function registerLocalRouting(api, options) {
             return undefined;
         if (run.passes > 0)
             progress.stage(run.sessionKey, "double-checking");
-        const done = () => { progress.finish(run.sessionKey); runs.delete(runId); runs.delete(`session:${pick(event, ctx, "sessionKey") ?? ""}`); };
+        const done = () => { progress.finish(run.sessionKey); runs.delete(runId); runs.delete(`session:${pick(event, ctx, "sessionKey") ?? ""}`); afterTurn?.turnEnded(); };
         // What this run must deliver: kept for reply_payload_sending (channel routes) and put in place for the agent CLI.
         let owed;
         // OpenClaw ignores a "revise" once any tool has run in the turn and sends the original reply (live sweep
@@ -3432,8 +3445,10 @@ export function registerLocalRouting(api, options) {
     // front desk's failure was only written when the turn ended). A run still open at agent_end is logged here, with how it ended.
     api.on("agent_end", (event, ctx) => {
         const run = runFor(event, ctx);
-        if (!run)
+        if (!run) {
+            afterTurn?.turnEnded();
             return undefined;
+        }
         const runId = pick(event, ctx, "runId") ?? "";
         const flow = run.flow;
         log({ stage: "agent_end", runId, message: run.message, decision: run.settled ?? { move: "escalate", fallback: "unsettled" },
@@ -3442,6 +3457,7 @@ export function registerLocalRouting(api, options) {
         progress.finish(run.sessionKey);
         runs.delete(runId);
         runs.delete(`session:${pick(event, ctx, "sessionKey") ?? run.sessionKey ?? ""}`);
+        afterTurn?.turnEnded();
         return undefined;
     });
 }

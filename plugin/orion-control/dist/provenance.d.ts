@@ -63,6 +63,13 @@ export interface ProvenanceHealth {
     lastTurnAgeMs?: number;
     lastBinding?: TrustBinding;
 }
+interface ToolCallBinding {
+    runId?: string;
+    sessionKey?: string;
+    /** The host's id for the session (also its transcript file name). */
+    sessionId?: string;
+    boundAt: number;
+}
 export declare function isUntrustedResultTool(toolName: string): boolean;
 export declare class HarnessProvenance {
     private readonly maxTurns;
@@ -137,6 +144,8 @@ export declare class HarnessProvenance {
     recordTranscriptTurn(record: {
         content?: unknown;
         sessionId?: unknown;
+        /** Stamped by hydration ONLY when the file read was the bound session's own transcript. */
+        sessionKey?: unknown;
         receivedAt?: number;
     }): void;
     /**
@@ -146,12 +155,15 @@ export declare class HarnessProvenance {
      * `llm_input` do fire — the transcript is a fallback, never a substitute for
      * a stronger source.
      */
-    hasUsableTurn(withinMs?: number): boolean;
+    hasUsableTurn(withinMs?: number, session?: SessionRef): boolean;
+    /** The binding for a tool call, without consuming it (hydration needs its session). */
+    peekBinding(toolCallId?: string): Readonly<ToolCallBinding> | undefined;
     /** Bind a host-generated tool call id to the run that issued it. */
     bindToolCall(record: {
         toolCallId?: unknown;
         runId?: unknown;
         sessionKey?: unknown;
+        sessionId?: unknown;
     }): void;
     /**
      * Resolve the trust anchor for one tool call. The binding is consumed so a
@@ -160,6 +172,19 @@ export declare class HarnessProvenance {
     resolve(toolCallId: string | undefined, policy?: ProvenancePolicy): TrustAnchor;
     health(): ProvenanceHealth;
 }
+interface SessionRef {
+    sessionKey?: string;
+    sessionId?: string;
+}
+/**
+ * The session key to stamp on a hydrated transcript turn: the binding's key, but
+ * only when the file read WAS the bound session's own transcript.
+ */
+export declare function transcriptSessionStamp(turn: {
+    sessionId?: string;
+}, binding?: SessionRef): {
+    sessionKey?: string;
+};
 /** Model-facing graph shape: it has no field that can express trust. */
 export interface ModelTaskGraph {
     version?: "1";
@@ -207,3 +232,4 @@ export interface AuthorizedGraph {
  * model controls that can land in `TaskInput.trust`.
  */
 export declare function authorizeTaskGraph(graph: ModelTaskGraph, anchor: TrustAnchor): AuthorizedGraph;
+export {};

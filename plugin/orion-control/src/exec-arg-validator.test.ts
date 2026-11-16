@@ -139,3 +139,46 @@ describe("quoting and spelling tricks fail closed", () => {
     expect(validateExecArgs(`rg -n 'a$' file`)).toBeUndefined();
   });
 });
+
+describe("the other owner-only programs are refused, but only their owner-only uses (F3 review 6b)", () => {
+  const bad = [
+    "orion-connect-admin allow-host a b.c", "scripts/orion-connect-admin allow-writes foo", "cat scripts/orion-connect-admin",
+    "orion-approve-resume A-1 summary",
+    "orion-mode sovereign --yes", "orion-mode open --yes --for 8h", "/x/scripts/orion-mode guarded --yes", "node scripts/orion-mode --yes OPEN",
+    "orion-mode op''en --yes", "orion-mode $MODE --yes", "sh -c 'orion-mode sovereign --yes'", "orion-mode contained; orion-mode open --yes",
+    "/x/scripts/orion-automation install a", "orion-automation install nightly", "node scripts/orion-automation install a",
+  ];
+  for (const c of bad) it(`refuses: ${c}`, () => expect(validateExecArgs(c), c).toMatch(/Nick/));
+  it("says why and what to do instead", () => {
+    expect(validateExecArgs("orion-mode sovereign --yes")).toMatch(/--explain|contained/);
+    expect(validateExecArgs("orion-automation install a")).toMatch(/propos/i);
+    expect(validateExecArgs("orion-connect-admin allow-host a b.c")).toMatch(/connector/i);
+  });
+  const ok = [
+    "orion-mode", "orion-mode --json", "orion-mode --explain sovereign", "orion-mode open --explain", "orion-mode contained",
+    "orion-mode contained --reason open", "orion-mode contained --never messages_read",
+    "orion-automation list", "orion-automation show nightly", "orion-automation simulate nightly",
+    "orion-automation schedule-plan nightly --timezone Europe/London", "orion-automation remove nightly",
+    "orion-model-status", "ls scripts/orion-modes", "cat scripts/orion-mode-check", "grep -n relax scripts/orion-mode scripts/orion-lock",
+  ];
+  for (const c of ok) it(`leaves alone: ${c}`, () => expect(validateExecArgs(c), c).toBeUndefined());
+});
+
+describe("environment that changes what a tool runs is refused (F3 review 6b)", () => {
+  const bad = [
+    "RIPGREP_CONFIG_PATH=/tmp/c rg x", "env RIPGREP_CONFIG_PATH=/tmp/c rg x", "export RIPGREP_CONFIG_PATH=/tmp/c; rg x",
+    "GIT_EXTERNAL_DIFF=/tmp/x git diff", "env GIT_EXTERNAL_DIFF=/tmp/x git diff", "GIT_PAGER=x git log",
+    "FOO=1 rg -n foo", "LC_ALL=C sort big.txt", "X=1 fd -e md", "env FOO=1 git log", "env -S 'X=y rg foo'",
+    "PAGER=/tmp/x cat f", "PATH=/tmp:/usr/bin ls", "NODE_OPTIONS=--require=/tmp/x node a.js", "DYLD_INSERT_LIBRARIES=/tmp/x.dylib ls",
+    "LD_PRELOAD=/tmp/x.so ls", "BASH_ENV=/tmp/x bash -c ls", "ENV=/tmp/x sh -c ls", "ZDOTDIR=/tmp zsh -c ls",
+    "PYTHONSTARTUP=/tmp/x python3", "LESSOPEN='|/tmp/x %s' less f", "EDITOR=/tmp/x crontab -e", "VISUAL=/tmp/x foo",
+    "export GIT_EXTERNAL_DIFF=/tmp/x; git diff", "GIT_EXTERNAL_DIFF=/tmp/x; export GIT_EXTERNAL_DIFF; git diff",
+    "declare -x PAGER=/tmp/x", "export PATH", "env PATH=/tmp ls",
+  ];
+  for (const c of bad) it(`refuses: ${c}`, () => expect(validateExecArgs(c), c).toMatch(/environment variable/));
+  it("names the variable and says to run the tool plainly", () => {
+    expect(validateExecArgs("GIT_EXTERNAL_DIFF=/tmp/x git diff")).toMatch(/GIT_EXTERNAL_DIFF.*plainly/s);
+  });
+  const ok = ["rg -n foo", "git log", "git diff", "LC_ALL=C ls -la", "TZ=Europe/London date", "env", "date", "echo $PATH", "rg -n PATH src"];
+  for (const c of ok) it(`leaves alone: ${c}`, () => expect(validateExecArgs(c), c).toBeUndefined());
+});
