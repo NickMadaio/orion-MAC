@@ -2,7 +2,7 @@
 // A facet older than its limit reads as `unknown` whatever it says; nothing here guesses.
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { LIMITS, UNKNOWN, derive, isFresh } from "./facets.mjs";
 import { readJson, writeJsonAtomic } from "./io.mjs";
@@ -65,7 +65,23 @@ const withDeclared = (aw, dir, now) => {
   return declared ? finish({ ...aw, sleep: { ...aw.sleep, state: "asleep", source: "declared", declaredAt: declared.at, at: now.toISOString() } }) : aw;
 };
 
+/** Where reach/gate.mjs remembers when it first saw a pause whose start nothing else records. */
+export const PAUSE_FIRST_SEEN_FILE = "pause-first-seen.json";
+/** Every refresh that sees the session not paused (or a different session) ends that record, so a resume ends the old pause's clock. */
+function clearPauseFirstSeen(dir, session) {
+  try {
+    if (!session || session.state === "unknown") return;
+    const file = join(dir, PAUSE_FIRST_SEEN_FILE);
+    if (session.state === "paused") {
+      const seen = JSON.parse(readFileSync(file, "utf8"));
+      if ((seen.sessionId ?? null) === (session.sessionId ?? null)) return;
+    }
+    rmSync(file, { force: true });
+  } catch { /* no record, or unreadable: nothing to clear */ }
+}
+
 export function writeAwareness(dir, aw) {
+  clearPauseFirstSeen(dir, aw.session);
   const { derived: _drop, ...facets } = aw;
   writeJsonAtomic(dir, FILE, { ...facets, derived: derive(facets) });
 }

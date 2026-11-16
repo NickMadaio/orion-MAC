@@ -11,6 +11,14 @@ import { clockNow } from "../clock.mjs";
 /** A pause this young still counts as focus; Nick confirmed 3 minutes. */
 export const PAUSE_GRACE_MS = 3 * 60_000;
 
+/** The app's focus day starts at 04:00 local; a session whose dayKey is older than the current one is a leftover (2026-11-16: paused since 11-10). */
+export function isStaleDayKey(dayKey, now = Date.now()) {
+  if (typeof dayKey !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return false;
+  const d = new Date(Number(now instanceof Date ? now.getTime() : now) - 4 * 3_600_000);
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dayKey < today;
+}
+
 /** focus | rest | paused | waiting | none | unknown, from an `orion-session status --json` reply. */
 export function sessionState(s) {
   if (!s || typeof s !== "object" || s.unreadable) return "unknown";
@@ -21,10 +29,11 @@ export function sessionState(s) {
 }
 
 /** Focus, or paused for under 3 minutes. `pausedForMs` is unknown from the socket alone: then a pause counts as active. */
-export function isSessionActive(s) {
+export function isSessionActive(s, now = Date.now()) {
   const state = sessionState(s);
   if (state === "focus") return true;
   if (state !== "paused") return false;
+  if (isStaleDayKey(s.dayKey, now)) return false;
   return !(Number.isFinite(s.pausedForMs) && s.pausedForMs >= PAUSE_GRACE_MS);
 }
 
@@ -35,8 +44,8 @@ function fromAwareness(env) {
   if (session.state === "unknown") return undefined;
   const status = { focus: { status: "running", phase: "focus" }, rest: { status: "running", phase: "rest" },
     paused: { status: "paused", pausedForMs: now - Date.parse(session.since ?? session.at) }, waiting: { status: "waiting-for-return" }, none: { status: "none" } }[session.state];
-  const s = { ...status, task: session.task, sessionId: session.sessionId };
-  return isSessionActive(s) ? s : null;
+  const s = { ...status, task: session.task, sessionId: session.sessionId, ...(session.dayKey ? { dayKey: session.dayKey } : {}) };
+  return isSessionActive(s, now) ? s : null;
 }
 
 export function activeSession(env = process.env) {
@@ -47,6 +56,6 @@ export function activeSession(env = process.env) {
   try {
     const r = spawnSync(process.execPath, [join(import.meta.dirname, "../../orion-session"), "status", "--json"], { encoding: "utf8", timeout: 4000, env });
     const s = JSON.parse(r.stdout);
-    return isSessionActive(s) ? s : null;
+    return isSessionActive(s, clockNow(env, ["ORION_REACH_NOW"])) ? s : null;
   } catch { return null; }
 }

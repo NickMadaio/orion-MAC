@@ -2,11 +2,13 @@
 // gate() is pure. The facts come from the one reader (awareness/state.mjs readAwareness, contract C1): a facet
 // past its limit (spec 3.1) is `unknown`, and unknown never holds anything back.
 import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { bypassesQuiet } from "./quiet.mjs";
-import { readAwareness, refreshIfOld } from "../awareness/state.mjs";
+import { readAwareness, refreshIfOld, PAUSE_FIRST_SEEN_FILE } from "../awareness/state.mjs";
 import { routineHold } from "../patterns/hooks.mjs";
 import { activityVerdict, recentNudges } from "./activity-gate.mjs";
+import { isStaleDayKey } from "./focus-hold.mjs";
 import { readActivity } from "../awareness/activity.mjs";
 
 /** Someone who paused is not focusing, but the first minutes of a pause still hold (Nick: 3 min). */
@@ -54,10 +56,36 @@ const UNKNOWN = Object.freeze({ state: "unknown" });
 export function sessionFromStatus(s, now = Date.now()) {
   const at = new Date(ms(now)).toISOString();
   const state = s?.status === "running" ? (s.phase === "rest" ? "rest" : "focus")
-    : s?.status === "paused" ? "paused"
+    : s?.status === "paused" ? (isStaleDayKey(s.dayKey, now) ? "none" : "paused")   // a pause from a previous day is a leftover, not focus
     : s?.status === "waiting-for-return" ? "waiting"
     : s ? "none" : "unknown";
-  return { state, at, source: "socket", ...(s?.pausedAt ? { pausedAt: s.pausedAt } : {}) };
+  return { state, at, source: "socket", ...(s?.sessionId ? { sessionId: s.sessionId } : {}), ...(s?.pausedAt ? { pausedAt: s.pausedAt } : {}) };
+}
+
+/** A probed pause keeps the start the file recorded for the same session. */
+function carryPauseStart(live, file) {
+  if (live?.state !== "paused" || file?.state !== "paused" || !file.since) return live;
+  if (live.sessionId && file.sessionId && live.sessionId !== file.sessionId) return live;
+  return { ...live, since: file.since };
+}
+
+const FIRST_SEEN = PAUSE_FIRST_SEEN_FILE;
+/**
+ * The socket cannot say when a pause began and no file knows either: remember when it was first seen, so repeated probes age it
+ * and the 3-minute grace ends (otherwise each probe stamped "now" and the pause held forever). Cleared once the pause is over.
+ */
+function rememberPauseStart(live, { dir, now }) {
+  const file = join(dir, FIRST_SEEN);
+  try {
+    if (live?.state !== "paused") { if (live && live.state !== "unknown") rmSync(file, { force: true }); return live; }
+    if (live.since) return live;
+    let seen = null;
+    try { seen = JSON.parse(readFileSync(file, "utf8")); } catch {}
+    if (seen?.since && Number.isFinite(Date.parse(seen.since)) && (seen.sessionId ?? null) === (live.sessionId ?? null)) return { ...live, since: seen.since };
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, JSON.stringify({ sessionId: live.sessionId ?? null, since: new Date(ms(now)).toISOString() }));
+    return live;
+  } catch { return live; }
 }
 
 function probeSession(env, now) {
@@ -73,14 +101,17 @@ function probeSession(env, now) {
  * what presence() knows about his sleep window) for sleep.
  * @param probe ask the session socket when the file has no fresh session (off for a dry run)
  */
-export function resolveAwareness({ dir, now = Date.now(), env = process.env, legacy = null, probe = true }) {
+export function resolveAwareness({ dir, now = Date.now(), env = process.env, legacy = null, probe = true, probeFn = probeSession }) {
   const at = new Date(ms(now));
   if (probe) refreshIfOld({ dir, now: at, env });   // a dry run changes nothing
   const aw = readAwareness({ dir, now: at });
   // A session that holds things is asked again live (cheap) so a session that just ended releases at once, not up to
   // 90 s later; where the socket is unreachable the file's answer stands.
   const holding = ["focus", "paused"].includes(aw.session.state);
-  const live = probe && (aw.session.state === "unknown" || holding) ? probeSession(env, now) : null;
+  const probed = probe && (aw.session.state === "unknown" || holding) ? probeFn(env, now) : null;
+  // The socket's pause has no start time, so the probe stamps it "now"; when the file already knows this same pause, its
+  // start stands, or a pause from last week would read as 0 s old on every probe and hold outreach forever (2026-11-16).
+  const live = probed && probe ? rememberPauseStart(carryPauseStart(probed, aw.session), { dir, now }) : probed;
   const session = live && (live.state !== "unknown" || aw.session.state === "unknown") ? live : aw.session;
   // The file's `asleep` can be minutes old; presence() (live Mac facts, orion-reach only) sees him at the Mac inside his
   // window sooner, and that wins. It only ever loosens, and only on live evidence of him being up.
