@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -98,6 +98,10 @@ const definition: PersonalityProfile = {
 const COMPILER_TIMEOUT_MS = 60_000;
 
 describe("compile-time proof: authority cannot be expressed on a personality", () => {
+  // Each case runs the TypeScript compiler synchronously (about 20 s each on a 2-core CI runner). Four in a row
+  // kept this worker's event loop blocked for over a minute, and vitest failed the whole run with
+  // "Timeout calling onTaskUpdate" although every test had passed (CI, 2026-11-16). Yield between cases.
+  beforeEach(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
   it("the ordinary definition, with no authority field, type-checks with zero diagnostics", () => {
     const diagnostics = typeCheckFixture(VALID_LITERAL);
     expect(diagnostics.length).toBe(0);
