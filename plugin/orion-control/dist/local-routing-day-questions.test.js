@@ -97,7 +97,7 @@ describe("isQuestion — a 'when' clause is a plan, not a question", () => {
             const h = harness({ move: "escalate", tier: "quick" }, at);
             await h.turn("whats on tomorrow morning");
             expect(h.flows).toEqual([]);
-            expect(h.reads).toEqual([false === tomorrow ? false : true]);
+            expect(h.reads).toEqual([tomorrow]);
         });
     }
 });
