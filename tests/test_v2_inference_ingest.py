@@ -18,10 +18,31 @@ from orion.core.models.telemetry import encode_record
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SEED = REPO_ROOT / "planning" / "v2" / "model-roles.seed.json"
+SEED = REPO_ROOT / "docs" / "planning" / "v2" / "model-roles.seed.json"
 
 
 def contract():
+    """The shipped seed with the pre-2026-11-16 routing restored for the cases below.
+
+    The live contract is local-only (reasoning and fast are both ollama/qwen3.5:9b
+    with no fallback), so there is no paid cloud model, no fallback chain and no
+    price to exercise. These tests cover the normalizer's handling of exactly
+    those things, so they run against a fixture that carries a paid Haiku primary
+    with a local fallback and a separate `fast` model. Retired models still come
+    from the seed.
+    """
+    document = json.loads(SEED.read_text(encoding="utf-8"))
+    document["roles"]["reasoning"] = {
+        **document["roles"]["reasoning"],
+        "primary": "anthropic/claude-haiku-4-5-20251001",
+        "fallbacks": ["ollama/qwen3:8b", "ollama/llama3.2:3b"],
+        "rates": {"input_per_mtok": 1.0, "output_per_mtok": 5.0},
+    }
+    document["roles"]["fast"] = {**document["roles"]["fast"], "primary": "ollama/llama3.2:3b"}
+    return decode_contract(document)
+
+
+def live_contract():
     return decode_contract(json.loads(SEED.read_text(encoding="utf-8")))
 
 
@@ -96,7 +117,7 @@ class NormalizationTests(unittest.TestCase):
 
     def test_recognises_a_fallback_and_names_what_it_fell_back_from(self):
         rows = normalize_session(
-            [turn("2026-08-23T10:00:00Z", model="qwen3.6:27b", provider="ollama")],
+            [turn("2026-08-23T10:00:00Z", model="qwen3:8b", provider="ollama")],
             self.contract,
         )
         self.assertEqual(rows[0].role, "reasoning")
@@ -156,6 +177,18 @@ class NormalizationTests(unittest.TestCase):
         record["timestamp"] = 1787341879439
         rows = normalize_session([record], self.contract)
         self.assertEqual(rows[0].ts.tzinfo, timezone.utc)
+
+
+class LiveContractTests(unittest.TestCase):
+    def test_the_shipped_local_only_contract_normalizes_a_local_turn(self):
+        rows = normalize_session(
+            [turn("2026-08-23T10:00:00Z", model="qwen3.5:9b", provider="ollama")], live_contract()
+        )
+        # qwen3.5:9b is the primary of reasoning, fast and local at once, so any of
+        # the three owns the row; what matters is that it is not a fallback and is free.
+        self.assertIn(rows[0].role, {"reasoning", "fast", "local"})
+        self.assertFalse(rows[0].fallback.fired)
+        self.assertEqual(rows[0].estimated_cost_usd, 0.0)
 
 
 class TranscriptExclusionTests(unittest.TestCase):

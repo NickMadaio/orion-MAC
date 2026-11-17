@@ -19,13 +19,13 @@ from orion.mac import inference_ledger as adapter
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SEED = REPO_ROOT / "planning" / "v2" / "model-roles.seed.json"
+SEED = REPO_ROOT / "docs" / "planning" / "v2" / "model-roles.seed.json"
 
 
 class RoleResolutionTests(unittest.TestCase):
     def test_resolves_a_role_to_a_bare_model_name(self):
         # Bare, not provider/model: it is what every caller passes to its client.
-        self.assertEqual(adapter.resolve("local", "unused", SEED), "gpt-oss:20b")
+        self.assertEqual(adapter.resolve("local", "unused", SEED), "qwen3.5:9b")
 
     def test_a_missing_contract_leaves_the_caller_on_its_own_default(self):
         self.assertEqual(
@@ -87,6 +87,15 @@ class AppendTests(unittest.TestCase):
         self.assertEqual(self.ledger.stat().st_mode & 0o777, 0o600)
 
     def test_prices_a_paid_role_from_the_contract(self):
+        # The shipped contract is local-only (all rates 0.0), so price against a
+        # contract that carries a paid cloud role.
+        document = json.loads(SEED.read_text(encoding="utf-8"))
+        document["roles"]["reasoning"] = {
+            **document["roles"]["reasoning"],
+            "primary": "anthropic/claude-haiku-4-5-20251001",
+            "rates": {"input_per_mtok": 1.0, "output_per_mtok": 5.0},
+        }
+        self.contract = decode_contract(document)
         adapter.append(
             "reasoning", "anthropic/claude-haiku-4-5-20251001", 100,
             source="native_app", tokens=TokenCounts(input=1_000_000, output=0),

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drive a scenario bank through the exact gate (ask.mjs's path), one item at a time, concurrency 1.
 // Per item: snapshot, run every turn in ONE conversation, record the full effect diff, undo, verify the
-// undo, write the result. Rubric grading happens later in a separate grader; this records everything.
+// undo, write the result. The rubric is TONE: advisory, graded later by a separate model grader, never in the pass/fail total (lib/grading.mjs).
 //
 //   run.mjs <scenarios.json> [--out <dir>] [--readonly] [--only id,id] [--start N] [--eval-mode on|off]
 //           [--max-age-min 90] [--inbound auto|on|off] [--allowed-apps "A,B"] [--tier sandbox|live|all]
@@ -18,7 +18,8 @@ import { initialTracker } from "./lib/outreach.mjs";
 import { paths } from "./lib/live.mjs";
 import { holdMarker } from "./lib/marker.mjs";
 import { effectSince, restoreState, snapshotState, trackedFiles, verifyRestore } from "./lib/state.mjs";
-import { checkReplies, summarize, validateScenarios } from "./lib/scenarios.mjs";
+import { summarize, validateScenarios } from "./lib/scenarios.mjs";
+import { gradeItem, summaryLine } from "./lib/grading.mjs";
 import { applyPlan, planSetup, renderTokens } from "./lib/setup.mjs";
 import { seedOutreach } from "./lib/seed-outreach.mjs";
 import { cleanupNotes, notesBefore, notesEffect } from "./lib/computer-evidence.mjs";
@@ -83,7 +84,7 @@ export async function runItem({ item, index, stamp, p, ctx, opts }) {
   return {
     id: item.id, area: item.area, wording: item.wording, pair: item.pair ?? null, writes: item.writes, expect: item.expect, setup: { ...item.setup, ...setup },
     conversation, sessionKey: `orion-chat-${conversation}`, startedAt, finishedAt: new Date().toISOString(),
-    turns, effect, cleanup: { actions, verified }, checks: checkReplies(item.expect, turns.map((t) => t.reply)),
+    turns, effect, cleanup: { actions, verified }, checks: gradeItem(item.expect, turns.map((t) => t.reply), effect),
   };
 }
 
@@ -130,7 +131,7 @@ export async function runScenarios({ scenarios, opts, p = paths(), log = (s) => 
       }
       results.push(result);
       appendFileSync(resultsPath, `${JSON.stringify(result)}\n`);
-      log(`[${i + 1}/${scenarios.length}] ${item.id} ${result.skipped ? `skipped (${result.skipped})` : `${result.turns.map((t) => `${t.latencyMs ?? "-"}ms`).join(",")} regex:${result.checks.hasRegex ? (result.checks.passed ? "pass" : "FAIL") : "-"} restore:${result.cleanup.verified.ok ? "ok" : "PROBLEM"}`}`);
+      log(`[${i + 1}/${scenarios.length}] ${item.id} ${result.skipped ? `skipped (${result.skipped})` : `${result.turns.map((t) => `${t.latencyMs ?? "-"}ms`).join(",")} code:${result.checks.hasCode ? (result.checks.passed ? "pass" : "FAIL") : "unchecked"} restore:${result.cleanup.verified.ok ? "ok" : "PROBLEM"}`}`);
     }
   } finally {
     hold?.release();
@@ -192,7 +193,10 @@ async function main() {
   const stamp = stampNow();
   o.outDir ??= join(p.ctrl, "evals/gate", `run-${stamp}`);
   const { summary } = await runScenarios({ scenarios: JSON.parse(readFileSync(file, "utf8")), opts: { ...o, stamp } });
-  process.stdout.write(`GATE RUN DONE ${JSON.stringify(summary)}\n`);
+  process.stdout.write(`GATE RUN DONE ${summaryLine(summary)}\n`);
+  process.stdout.write(`GATE CODE (pass/fail) ${JSON.stringify({ ...summary.code, unusablePatterns: summary.unusablePatterns })}\n`);
+  process.stdout.write(`GATE TONE (advisory, model-graded, not in the total) ${JSON.stringify(summary.tone)}\n`);
+  process.stdout.write(`GATE SUMMARY ${JSON.stringify({ ...summary, code: undefined, tone: undefined })}\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((e) => { process.stderr.write(`run: ${e.message}\n`); process.exit(1); });

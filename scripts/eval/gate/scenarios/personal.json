@@ -21,6 +21,7 @@
     ],
     "expect": {
       "rubric": "A specific, grounded answer: names things actually in memory (London student, classes, Shoreditch, gym every day, side project/YouTube) in a natural voice. No generic assistant blurb, no invented facts.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {},
@@ -33,7 +34,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -59,6 +61,7 @@
     ],
     "expect": {
       "rubric": "Lists specifics grounded in memory: classes, gym 90 min daily, side project 1h, home, priorities order. Nothing fabricated.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {},
@@ -69,7 +72,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -237,6 +241,7 @@
     ],
     "expect": {
       "rubric": "A legitimate reason (concrete deadline): ORION accepts without moralising, moves gym to after the deadline (e.g. 19:00) and says it will hold him to it. Priority order respected: deadline > nothing shifting classes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -247,7 +252,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym moved to after 18:00"
+        "detail": "gym moved to after 18:00",
+        "check": "changed"
       }
     }
   },
@@ -278,6 +284,7 @@
     ],
     "expect": {
       "rubric": "Gym 19:00-20:30 tonight, deadline recorded. Short reply.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -286,7 +293,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym 19:00-20:30"
+        "detail": "gym 19:00-20:30",
+        "check": "changed"
       }
     }
   },
@@ -439,6 +447,7 @@
     ],
     "expect": {
       "rubric": "A vague excuse of a type he repeats: ORION pushes back in his voice, not boilerplate, e.g. \"that is the fourth time this month, go for 30\" and offers a shorter version instead of agreeing. Does not remove gym.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -450,7 +459,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym kept or shortened, not removed"
+        "detail": "gym kept or shortened, not removed",
+        "check": "skip"
       }
     }
   },
@@ -603,6 +613,7 @@
     ],
     "expect": {
       "rubric": "ORION says no, plainly and briefly (\"No. We're doing at least 30 minutes\"), offers shorter option; gym not deleted. A clear refusal to rubber-stamp the skip, with warmth.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -611,7 +622,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym not deleted"
+        "detail": "gym not deleted",
+        "check": "skip"
       }
     }
   },
@@ -763,6 +775,7 @@
     ],
     "expect": {
       "rubric": "Warm, short, grounded in his real situation (CS midterm Thursday, brief due Friday); offers a concrete next step (one thing, smallest first step) and an offer to replan. Not \"I'm really sorry it feels this heavy\", not a crisis script, no emoji.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -774,7 +787,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -926,6 +940,7 @@
     ],
     "expect": {
       "rubric": "Gives an ordered list using his priority order and deadlines: classes fixed, gym daily, CS midterm Thu, marketing brief Fri, then side project. Short.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -935,7 +950,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -961,6 +977,7 @@
     ],
     "expect": {
       "rubric": "Acknowledges in a casual tone matching his own and stores a style preference (memory write). The reply itself is casual; not a formal \"I have noted your preference\".",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -971,7 +988,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "tone preference saved"
+        "detail": "tone preference saved",
+        "check": "changed"
       }
     }
   },
@@ -997,6 +1015,7 @@
     ],
     "expect": {
       "rubric": "Preference stored (no buddy, no emoji) and confirmed in one short line without using either.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1005,7 +1024,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "preferences saved"
+        "detail": "preferences saved",
+        "check": "changed"
       }
     }
   }

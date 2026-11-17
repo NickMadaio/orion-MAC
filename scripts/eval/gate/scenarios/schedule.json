@@ -142,6 +142,7 @@
     ],
     "expect": {
       "rubric": "Gym block is moved to be the first event after Nick gets home from MKTG2201 (about 16:15-16:30 onward, not before class ends). Other ORION-owned blocks reflow after it. MKTG2201 is untouched. Reply states the new gym time briefly, no narration about a scheduler.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -153,7 +154,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym moved to first slot after MKTG2201+commute; class unchanged"
+        "detail": "gym moved to first slot after MKTG2201+commute; class unchanged",
+        "check": "changed"
       }
     }
   },
@@ -300,6 +302,7 @@
     ],
     "expect": {
       "rubric": "Same as the vague phrasing: gym is first event after return from MKTG2201, rest of own blocks pushed later, class untouched. Completes in one turn without a 250 s stall.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -310,7 +313,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym first after class"
+        "detail": "gym first after class",
+        "check": "changed"
       }
     }
   },
@@ -461,6 +465,7 @@
     ],
     "expect": {
       "rubric": "Tomorrow alarm moves from 08:00 to 09:00. Reply confirms the alarm time. Must not create a reminder labelled \"push my alarm\". Should flag if 09:00 collides with a fixed class (ECON1115 is 11:00 so fine).",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -471,7 +476,8 @@
       ],
       "effect": {
         "kind": "alarm",
-        "detail": "alarm 09:00 tomorrow; no new reminder"
+        "detail": "alarm 09:00 tomorrow; no new reminder",
+        "check": "changed"
       }
     }
   },
@@ -622,6 +628,7 @@
     ],
     "expect": {
       "rubric": "Alarm changed to 09:00 tomorrow, reply states it. No reminder created.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -631,7 +638,8 @@
       ],
       "effect": {
         "kind": "alarm",
-        "detail": "alarm moved to 09:00"
+        "detail": "alarm moved to 09:00",
+        "check": "changed"
       }
     }
   },
@@ -778,6 +786,7 @@
     ],
     "expect": {
       "rubric": "A study block of ~30 min is placed BEFORE MKTG2201 (before 13:30, ending with a buffer) not after it, and other tasks are not shifted. Reply names the time.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -787,7 +796,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "study block ends <= 13:25 today"
+        "detail": "study block ends <= 13:25 today",
+        "check": "changed"
       }
     }
   },
@@ -934,6 +944,7 @@
     ],
     "expect": {
       "rubric": "A 30 min ECON1115 review block ends before 13:30 today; other blocks unchanged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -942,7 +953,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "30 min econ review before 13:30"
+        "detail": "30 min econ review before 13:30",
+        "check": "changed"
       }
     }
   },
@@ -1095,6 +1107,7 @@
     ],
     "expect": {
       "rubric": "CS lab block extended to 2 hours (20:00-22:00) and ORION blocks after it shift or drop by priority; gym is not dropped to make room. Must NOT ask \"what time or how long\".",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1103,7 +1116,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "cs lab 2h"
+        "detail": "cs lab 2h",
+        "check": "changed"
       }
     }
   },
@@ -1256,6 +1270,7 @@
     ],
     "expect": {
       "rubric": "CS lab is 20:00-22:00. Reply confirms. Gym still present today.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1264,7 +1279,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "cs lab 20:00-22:00; gym kept"
+        "detail": "cs lab 20:00-22:00; gym kept",
+        "check": "changed"
       }
     }
   },
@@ -1411,6 +1427,7 @@
     ],
     "expect": {
       "rubric": "A CS lab block 19:15-22:30 is created at once with no confirmation question. Conflicts with ORION blocks are resolved by moving those, not classes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1421,7 +1438,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "cs lab 19:15-22:30"
+        "detail": "cs lab 19:15-22:30",
+        "check": "changed"
       }
     }
   },
@@ -1446,6 +1464,7 @@
     ],
     "expect": {
       "rubric": "Block created 19:15-22:30; reply short and confirms.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1454,7 +1473,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "cs lab 19:15-22:30"
+        "detail": "cs lab 19:15-22:30",
+        "check": "changed"
       }
     }
   },
@@ -1606,6 +1626,7 @@
     ],
     "expect": {
       "rubric": "ORION asks or infers which class only if truly ambiguous (two classes today) and otherwise removes/marks both as not happening, cancels leave nudges, and offers to use the freed time (gym/study) by priority. Must not nudge to leave afterwards.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1614,7 +1635,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "today class events marked cancelled; leave nudges cancelled"
+        "detail": "today class events marked cancelled; leave nudges cancelled",
+        "check": "changed"
       }
     }
   },
@@ -1766,6 +1788,7 @@
     ],
     "expect": {
       "rubric": "Both class events are marked cancelled for today, leave nudges removed, the freed hours get filled with gym and study blocks in priority order. Reply summarises the new day.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1774,7 +1797,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "both classes cancelled; reflowed"
+        "detail": "both classes cancelled; reflowed",
+        "check": "changed"
       }
     }
   },
@@ -1921,6 +1945,7 @@
     ],
     "expect": {
       "rubric": "ORION lightens tomorrow: keeps fixed classes, gym (shortened or kept), moves non-essential owned blocks out or shortens them, adds protected rest. States what it dropped. Does not drop gym silently or delete classes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1929,7 +1954,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "tomorrow lighter; classes unchanged"
+        "detail": "tomorrow lighter; classes unchanged",
+        "check": "changed"
       }
     }
   },
@@ -1954,6 +1980,7 @@
     ],
     "expect": {
       "rubric": "Tomorrow: classes and gym unchanged, side project block 30 min, a break block after lunch.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1962,7 +1989,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "side project 30m; lunch break added"
+        "detail": "side project 30m; lunch break added",
+        "check": "changed"
       }
     }
   },
@@ -2109,6 +2137,7 @@
     ],
     "expect": {
       "rubric": "Gym block moves to after dinner (about 20:00-21:30 today), other ORION blocks reflow. Still 90 min. Reply states the time.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2118,7 +2147,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym 20:00+ , 90 min"
+        "detail": "gym 20:00+ , 90 min",
+        "check": "changed"
       }
     }
   },
@@ -2143,6 +2173,7 @@
     ],
     "expect": {
       "rubric": "Gym is 20:30-22:00 today. Reply confirms.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2151,7 +2182,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym 20:30-22:00"
+        "detail": "gym 20:30-22:00",
+        "check": "changed"
       }
     }
   },
@@ -2298,6 +2330,7 @@
     ],
     "expect": {
       "rubric": "A deadline/quiz item is recorded for Thursday and 1-2 study blocks are scheduled before it in owned slots; not over classes. Reply says which days/times.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2306,7 +2339,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "quiz Thu + study blocks Tue/Wed"
+        "detail": "quiz Thu + study blocks Tue/Wed",
+        "check": "changed"
       }
     }
   },
@@ -2331,6 +2365,7 @@
     ],
     "expect": {
       "rubric": "Quiz event Thursday 14:00 and two 60 min study blocks before Thursday, none overlapping fixed events.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2339,7 +2374,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "quiz + 2 study blocks"
+        "detail": "quiz + 2 study blocks",
+        "check": "changed"
       }
     }
   },
@@ -2486,6 +2522,7 @@
     ],
     "expect": {
       "rubric": "Reads out today in order with times: ECON/MKTG classes, gym, side project. Short, no invention of events, nothing changes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2495,7 +2532,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -2642,6 +2680,7 @@
     ],
     "expect": {
       "rubric": "Complete list of today with times matching the calendar exactly. No changes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2650,7 +2689,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -2797,6 +2837,7 @@
     ],
     "expect": {
       "rubric": "The ORION-owned side-project block tonight is removed (owned, free to move) and the freed time is left free or offered to gym/rest. Classes untouched. Reply confirms.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2805,7 +2846,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "side-project block removed"
+        "detail": "side-project block removed",
+        "check": "changed"
       }
     }
   },
@@ -2952,6 +2994,7 @@
     ],
     "expect": {
       "rubric": "Side project block deleted; nothing else changes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2960,7 +3003,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "only that block removed"
+        "detail": "only that block removed",
+        "check": "changed"
       }
     }
   },
@@ -3112,6 +3156,7 @@
     ],
     "expect": {
       "rubric": "ORION moves only its own blocks one hour later. Classes and the Annika dinner stay fixed; ORION says it left them. If a moved block now collides with the dinner it resolves by dropping/shortening by priority (gym kept). Does not move the dinner.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3120,7 +3165,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "owned blocks +1h; class and dinner unchanged"
+        "detail": "owned blocks +1h; class and dinner unchanged",
+        "check": "changed"
       }
     }
   },
@@ -3272,6 +3318,7 @@
     ],
     "expect": {
       "rubric": "Owned blocks shifted +60 min, class and dinner unchanged; reply notes any block dropped.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3280,7 +3327,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "owned +1h; fixed unchanged"
+        "detail": "owned +1h; fixed unchanged",
+        "check": "changed"
       }
     }
   },
@@ -3427,6 +3475,7 @@
     ],
     "expect": {
       "rubric": "Because Nick named the class, ORION moves MKTG2201 today to 14:00 (keeps duration) and adjusts leave nudges and the gym slot. Reply confirms.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3435,7 +3484,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "MKTG2201 starts 14:00 today"
+        "detail": "MKTG2201 starts 14:00 today",
+        "check": "changed"
       }
     }
   },
@@ -3582,6 +3632,7 @@
     ],
     "expect": {
       "rubric": "MKTG2201 starts 14:00 today, owned blocks reflowed, leave nudge retimed.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3590,7 +3641,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "MKTG2201 14:00"
+        "detail": "MKTG2201 14:00",
+        "check": "changed"
       }
     }
   },
@@ -3737,6 +3789,7 @@
     ],
     "expect": {
       "rubric": "Weekend gets gym 90 min each day, an econ study block each day, a protected rest block, side project/YouTube >= 1h. No fake events with people. Reply lists Sat and Sun briefly.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -3746,7 +3799,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "Sat/Sun blocks created"
+        "detail": "Sat/Sun blocks created",
+        "check": "changed"
       }
     }
   },
@@ -3893,6 +3947,7 @@
     ],
     "expect": {
       "rubric": "Sat/Sun have exactly those blocks. Sunday afternoon is free of owned blocks.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3901,7 +3956,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "specified blocks present"
+        "detail": "specified blocks present",
+        "check": "changed"
       }
     }
   }

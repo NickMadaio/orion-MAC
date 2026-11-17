@@ -51,6 +51,8 @@ def contract(**overrides):
             "stt": role("deepgram/nova-3"),
             "tts": role("local/mlx-audio", ["elevenlabs/eleven_turbo_v2_5"]),
             "coder": role("ollama/gpt-oss:20b"),
+            "local_deep": role("ollama/qwen3:30b"),
+            "unrestricted": role(None),
         },
         "providers": {
             "anthropic": {"credential": {"source": "keychain", "ref": "ORION OpenClaw Anthropic"}},
@@ -250,7 +252,7 @@ class SeedContractTests(unittest.TestCase):
 
     def setUp(self):
         self.seed = json.loads(
-            (REPO_ROOT / "planning" / "v2" / "model-roles.seed.json").read_text(
+            (REPO_ROOT / "docs" / "planning" / "v2" / "model-roles.seed.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -267,10 +269,12 @@ class SeedContractTests(unittest.TestCase):
             for binding in self.contract.roles.values()
             for ref in binding.chain()
         }
+        # 2026-11-16: local-only. The agent and LocalModel.swift are both the
+        # resident qwen3.5:9b now; gpt-oss:20b survives only as the coder fallback.
         for expected in (
-            "anthropic/claude-haiku-4-5-20251001",   # OpenClaw agent
-            "ollama/gpt-oss:20b",                    # LocalModel.swift
-            "deepgram/nova-3",                       # DeepgramSpeech.swift
+            "ollama/qwen3.5:9b",                     # OpenClaw agent + LocalModel.swift
+            "ollama/gpt-oss:20b",                    # coder fallback
+            "deepgram/flux-general-en",              # DeepgramSpeech.swift
             "ollama/nomic-embed-text",               # memory search
         ):
             self.assertIn(expected, chains)
@@ -306,11 +310,15 @@ class SeedContractTests(unittest.TestCase):
             self.assertIsNotNone(rates, f"{name} should be priced, not unpriced")
             self.assertEqual(rates.input_per_mtok, 0.0)
 
-    def test_the_cloud_reasoning_role_is_priced(self):
-        # The one role that actually costs money must be able to say so; this is
-        # what makes OpenClaw's all-zero cost field fixable.
-        self.assertIsNotNone(self.contract.role("reasoning").rates)
-        self.assertGreater(self.contract.role("reasoning").rates.output_per_mtok, 0)
+    def test_the_reasoning_role_is_priced_and_local_only(self):
+        # 2026-11-16: reasoning is the local qwen3.5:9b with no fallback, so it
+        # is priced at zero (free, not unpriced). A paid cloud model appearing
+        # here again would be a policy change, so it must be a visible decision.
+        rates = self.contract.role("reasoning").rates
+        self.assertIsNotNone(rates)
+        self.assertEqual((rates.input_per_mtok, rates.output_per_mtok), (0.0, 0.0))
+        self.assertEqual(self.contract.role("reasoning").primary.provider, "ollama")
+        self.assertEqual(self.contract.role("reasoning").fallbacks, ())
 
     def test_the_seed_carries_no_secret(self):
         assert_carries_no_secret(self.seed)

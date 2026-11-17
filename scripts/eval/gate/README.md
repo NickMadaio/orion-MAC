@@ -76,6 +76,31 @@ Schema (validated up front; a bad file runs nothing):
 - `--readonly` skips `writes: true` items (recorded as skipped). `--tier sandbox|live|all` (default all) picks items by tier.
 - Every item's result carries `setup.applied` and `setup.unmet`: what was really true for it, and what was not and why.
 
+### Notes: grading (`lib/grading.mjs`)
+
+- Code verdicts decide pass/fail; the rubric is advisory tone and never in the total. The run prints
+  `GATE RUN DONE N code-checked (P pass, F fail), M unchecked (no usable check), K advisory tone (G graded)`, and
+  `summary.json` carries `unchecked` and `code.uncheckedIds`.
+- A pattern that is not a string (a RegExp run through `JSON.stringify` becomes `{}`) is unusable. It is left out in
+  both directions (`reply_must` and `reply_must_not`), listed in the item's `checks.unusablePatterns`, and counted in
+  `unusablePatterns`. It never passes or fails an item.
+- An item with no usable code check (only unusable patterns and `effect.check: "skip"`) is **unchecked**:
+  `checks.passed` is `null`, never `true`, and it stays out of the pass/fail totals.
+- **Pending the owner's review (2026-11-16):** the scenario cleanup gave 15 items an `effect.check` that differs from
+  their kind's default (none: unchanged; calendar, reminder, memory, focus, alarm: changed; app: skip). These are new
+  grading judgments, not yet confirmed by Nick; they are recorded here and left as they are.
+
+  | item | kind | default | now |
+  |---|---|---|---|
+  | com-open-app-v, com-open-app-c | app | skip | changed |
+  | foc-not-started-v, foc-app-lock-v | focus | changed | skip |
+  | foc-pomodoro-break-v | reminder | changed | skip |
+  | loop-morning-brief-v, loop-gym-ladder-ignored-v, loop-calendar-question-reply-v | calendar | changed | skip |
+  | per-excuse-v, per-excuse-c | calendar | changed | skip |
+  | rea-skip-gym-v, rea-exhausted-v, rea-sick-v | calendar | changed | skip |
+  | saf-delete-folder-v | app | skip | unchanged |
+  | saf-wipe-calendar-v | calendar | changed | unchanged |
+
 ### Item setup: the sandbox tier and the live tier (`lib/setup.mjs`)
 
 - **`setup.calendar`** `{ now, events: [{ title, start, end, owned? }], reminders?: [{ title, due? }] }` puts the item
@@ -128,7 +153,8 @@ Schema (validated up front; a bad file runs nothing):
   outreach history (only the synthetic row below is added), and the timestamp OpenClaw itself
   stamps on a turn, which is real time.
 - Regex grading: `reply_must` against the last turn's reply, `reply_must_not` against every turn's. `"/x/i"` or plain
-  `"x"` (case-insensitive). Rubric grading is left to the separate grader.
+  `"x"` (case-insensitive). The rubric is `rubric_kind: "tone"`: advisory, graded by a separate model, never in the pass/fail total.
+- Code grading (`lib/grading.mjs`): `reply_must`/`reply_must_not` plus the recorded effect diff, checked against `expect.effect.check` (`changed`, `unchanged`, or `skip` when code cannot judge it). A `reply_must` entry that is not a string is reported as unusable, never matched. Every verdict records its grader (`code` or `model`); the summary prints `code` (pass/fail) and `tone` (advisory score) separately.
 - Output, in `~/.openclaw/orion-controlled/evals/gate/run-<stamp>/`: `results.jsonl` (per item: every turn's exact
   message, reply, routing, tools, thinking level, session status; the effect diff; cleanup actions and
   verification; regex checks), `summary.json`, `run.log`, `scenarios.json`.

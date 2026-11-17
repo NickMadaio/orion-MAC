@@ -152,6 +152,7 @@
     ],
     "expect": {
       "rubric": "Turn 1: reasonable, grants a grace of 20-30 min, says it will come back at a time. Turn 2 (or ORION unprompted at ~18:30): \"ok you ate, now we start\" and CS lab starts immediately, a focus session or block begins. Must not re-run the nag ladder in between.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -162,7 +163,8 @@
       ],
       "effect": {
         "kind": "focus",
-        "detail": "CS lab session started after eating"
+        "detail": "CS lab session started after eating",
+        "check": "changed"
       }
     }
   },
@@ -190,6 +192,7 @@
     ],
     "expect": {
       "rubric": "Turn 1: sets a 25 min timer and a comeback at ~18:30. Turn 2: starts CS lab now, with a focus session; no extra questions.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -199,7 +202,8 @@
       ],
       "effect": {
         "kind": "focus",
-        "detail": "session CS lab started; check-in at +25"
+        "detail": "session CS lab started; check-in at +25",
+        "check": "changed"
       }
     }
   },
@@ -362,6 +366,7 @@
     ],
     "expect": {
       "rubric": "ORION accepts the commitment, says goodnight in a short human way, sets/confirms tomorrow protection (alarm for CS2100, no early block), and schedules a quiet check at a stated time if the phone/Mac shows activity. If he keeps going, it escalates rather than vanishing.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -370,7 +375,8 @@
       ],
       "effect": {
         "kind": "alarm",
-        "detail": "alarm confirmed before CS2100; schedule protected"
+        "detail": "alarm confirmed before CS2100; schedule protected",
+        "check": "changed"
       }
     }
   },
@@ -533,6 +539,7 @@
     ],
     "expect": {
       "rubric": "Alarm set for 08:00; tomorrow before CS2100 kept free; reply short and confirms the alarm time.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -541,7 +548,8 @@
       ],
       "effect": {
         "kind": "alarm",
-        "detail": "alarm 08:00"
+        "detail": "alarm 08:00",
+        "check": "changed"
       }
     }
   },
@@ -689,6 +697,7 @@
     ],
     "expect": {
       "rubric": "ORION gives a short, hard cutoff (he can still make it if he leaves by X), re-nudges at that time, and does not restart as if nothing happened or cancel the nudge. Not preachy.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -698,7 +707,8 @@
       ],
       "effect": {
         "kind": "reminder",
-        "detail": "leave nudge re-timed to ~+5 min"
+        "detail": "leave nudge re-timed to ~+5 min",
+        "check": "changed"
       }
     }
   },
@@ -846,6 +856,7 @@
     ],
     "expect": {
       "rubric": "Leave nudge re-timed to 13:05 with a confirmation; if the commute is >25 min, ORION says that is tight.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -854,7 +865,8 @@
       ],
       "effect": {
         "kind": "reminder",
-        "detail": "nudge at 13:05"
+        "detail": "nudge at 13:05",
+        "check": "changed"
       }
     }
   },
@@ -1015,6 +1027,7 @@
     ],
     "expect": {
       "rubric": "\"yeah\" is ambiguous: ORION must not assume done. It makes the top items concrete: asks which one first or books them today at times. The reply is not canned and acknowledges these have been on the list for a long time.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1024,7 +1037,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "blocks booked for resume/oyster card or specific question"
+        "detail": "blocks booked for resume/oyster card or specific question",
+        "check": "skip"
       }
     }
   },
@@ -1185,6 +1199,7 @@
     ],
     "expect": {
       "rubric": "Oyster card block 09:00 and resume block 16:00 today; both removed from the generic list once scheduled.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1194,7 +1209,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "oyster 09:00; resume 16:00"
+        "detail": "oyster 09:00; resume 16:00",
+        "check": "changed"
       }
     }
   },
@@ -1342,6 +1358,7 @@
     ],
     "expect": {
       "rubric": "\"whenever\" is permission: ORION picks the slot itself (owned time, e.g. tomorrow evening 60 min), books it, and tells him the time. No further question.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1352,7 +1369,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "60 min catch-up booked"
+        "detail": "60 min catch-up booked",
+        "check": "changed"
       }
     }
   },
@@ -1378,6 +1396,7 @@
     ],
     "expect": {
       "rubric": "Catch-up block 60 min tomorrow right after gym, booked.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1386,7 +1405,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "catch-up after gym tomorrow"
+        "detail": "catch-up after gym tomorrow",
+        "check": "changed"
       }
     }
   },
@@ -1543,6 +1563,7 @@
     ],
     "expect": {
       "rubric": "Gym is must-priority so ORION does not just give up: it responds like someone who knows him, says gym is not optional, offers a short version (30 min now) or a hard slot tomorrow morning, and books one so the loop stays open. No scripted \"I'll stop pinging\".",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1553,7 +1574,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym rebooked (today short or tomorrow slot)"
+        "detail": "gym rebooked (today short or tomorrow slot)",
+        "check": "skip"
       }
     }
   },
@@ -1585,6 +1607,7 @@
     ],
     "expect": {
       "rubric": "Gym booked tomorrow morning at a stated time; ORION says it will check at that start; notes gym slipped today.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1593,7 +1616,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym tomorrow morning; slip logged"
+        "detail": "gym tomorrow morning; slip logged",
+        "check": "changed"
       }
     }
   },
@@ -1755,6 +1779,7 @@
     ],
     "expect": {
       "rubric": "Corrects the stale message: next thing is gym (today 17:00-18:30), not tomorrow CS2100. States the real next event from the calendar.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1764,7 +1789,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -1923,6 +1949,7 @@
     ],
     "expect": {
       "rubric": "Tells him gym is now, with the time. Calendar unchanged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1931,7 +1958,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -2083,6 +2111,7 @@
     ],
     "expect": {
       "rubric": "ORION does not act or answer weirdly on the fragment (silence or a brief \"go ahead\"), then on the continuation moves gym to right after MKTG2201 and confirms once. Exactly one calendar change.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2091,7 +2120,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym after MKTG2201"
+        "detail": "gym after MKTG2201",
+        "check": "changed"
       }
     }
   },
@@ -2243,6 +2273,7 @@
     ],
     "expect": {
       "rubric": "One combined result: gym right after MKTG2201 and side project at 20:00. No duplicate gym blocks.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2252,7 +2283,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym after class; side project 20:00"
+        "detail": "gym after class; side project 20:00",
+        "check": "changed"
       }
     }
   },
@@ -2414,6 +2446,7 @@
     ],
     "expect": {
       "rubric": "Firm but humane: sleep matters more than the work; offers to take the work into tomorrow after class. Re-plans tomorrow around ~5h sleep (adds a nap, lightens gym only if needed but keeps it), keeps CS2100 fixed. Books the work.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2423,7 +2456,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "tomorrow reflowed: nap + work moved; class fixed"
+        "detail": "tomorrow reflowed: nap + work moved; class fixed",
+        "check": "changed"
       }
     }
   },
@@ -2585,6 +2619,7 @@
     ],
     "expect": {
       "rubric": "Accepts a hard 30 min cap (until 03:30) with a stated check-back, then bed; re-plans tomorrow with a nap. Keeps CS2100.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2593,7 +2628,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "nap tomorrow; check-in 03:30"
+        "detail": "nap tomorrow; check-in 03:30",
+        "check": "changed"
       }
     }
   },
@@ -2747,6 +2783,7 @@
     ],
     "expect": {
       "rubric": "Asks one short follow-up (what changed / when) or offers to move it to the next free slot. Does not delete the study block outright or leave it unaddressed.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2756,7 +2793,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "study block kept or moved; no silent delete"
+        "detail": "study block kept or moved; no silent delete",
+        "check": "skip"
       }
     }
   },
@@ -2782,6 +2820,7 @@
     ],
     "expect": {
       "rubric": "Study for CS Midterm moved to 20:00 tonight, same length; calendar updated.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2790,7 +2829,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "study 20:00 tonight"
+        "detail": "study 20:00 tonight",
+        "check": "changed"
       }
     }
   }

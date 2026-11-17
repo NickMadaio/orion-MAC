@@ -142,6 +142,7 @@
     ],
     "expect": {
       "rubric": "Gym is a high-priority item so ORION does not just accept. It asks one short question for the reason OR pushes back lightly and offers a smaller version (30 min) or a later slot, tells him tomorrow gets protected. If he insists later the block moves, never silently deleted. No scolding wall of text.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -152,7 +153,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym not deleted this turn"
+        "detail": "gym not deleted this turn",
+        "check": "skip"
       }
     }
   },
@@ -177,6 +179,7 @@
     ],
     "expect": {
       "rubric": "Explicit reschedule: gym today moved to tomorrow (a 90 min slot after classes), owned blocks reflow, ORION notes gym comes first tomorrow. It may add one light line but does not argue.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -185,7 +188,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym moved to tomorrow"
+        "detail": "gym moved to tomorrow",
+        "check": "changed"
       }
     }
   },
@@ -332,6 +336,7 @@
     ],
     "expect": {
       "rubric": "A worthwhile spontaneous choice: ORION adapts instead of scolding. Asks how long if unknown or assumes ~2h, moves gym later tonight or to tomorrow, keeps classes. No lecture. Adds the plan as a fixed event only if Nick confirms details.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -342,7 +347,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym moved; no deletion of fixed events"
+        "detail": "gym moved; no deletion of fixed events",
+        "check": "changed"
       }
     }
   },
@@ -367,6 +373,7 @@
     ],
     "expect": {
       "rubric": "Adds \"food with Annika\" 17:00-19:00 as fixed (named by Nick). Gym moves to after, about 19:00-20:30; side project shifts or drops. Reply short and friendly.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -375,7 +382,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "plan 17-19 added; gym 19:00+"
+        "detail": "plan 17-19 added; gym 19:00+",
+        "check": "changed"
       }
     }
   },
@@ -522,6 +530,7 @@
     ],
     "expect": {
       "rubric": "ORION pushes only its own post-class blocks (commute, gym) later by a reasonable guess or asks once how long; leave-for-gym nudge retimed. Does not mark class as skipped.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -531,7 +540,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "post-class blocks shifted; class intact"
+        "detail": "post-class blocks shifted; class intact",
+        "check": "changed"
       }
     }
   },
@@ -678,6 +688,7 @@
     ],
     "expect": {
       "rubric": "Owned blocks after 15:30 shifted by 30 minutes. Class unchanged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -686,7 +697,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "owned blocks +30"
+        "detail": "owned blocks +30",
+        "check": "changed"
       }
     }
   },
@@ -839,6 +851,7 @@
     ],
     "expect": {
       "rubric": "Extends the econ block (asks or assumes +45-60 min), shifts the side project, keeps gym unless time truly runs out; says what moved. Does not offer a lecture.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -847,7 +860,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "econ block extended; side project shifted"
+        "detail": "econ block extended; side project shifted",
+        "check": "changed"
       }
     }
   },
@@ -1000,6 +1014,7 @@
     ],
     "expect": {
       "rubric": "Econ block runs until 20:30; following owned blocks shifted by 60 min or trimmed by priority.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1008,7 +1023,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "econ ends 20:30"
+        "detail": "econ ends 20:30",
+        "check": "changed"
       }
     }
   },
@@ -1155,6 +1171,7 @@
     ],
     "expect": {
       "rubric": "Acknowledges in a human way, reads the day: proposes a 20-30 min nap before class or after and lightens the evening; keeps gym but offers a shorter version. Does not overwrite classes. A question is fine but it should also act or give a concrete proposal.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1164,7 +1181,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "nap block added or proposal made"
+        "detail": "nap block added or proposal made",
+        "check": "skip"
       }
     }
   },
@@ -1189,6 +1207,7 @@
     ],
     "expect": {
       "rubric": "30 min nap 16:00-16:30 added, side project tonight removed, gym unchanged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1197,7 +1216,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "nap added; side project removed"
+        "detail": "nap added; side project removed",
+        "check": "changed"
       }
     }
   },
@@ -1350,6 +1370,7 @@
     ],
     "expect": {
       "rubric": "Records MKTG2201 missed today and responds without scolding or canned lines. Offers to schedule catch-up time (lecture slides/recording) in an owned slot this week; asks for his choice or proposes a concrete slot. Memory/slip record updated.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1358,7 +1379,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "missed class recorded"
+        "detail": "missed class recorded",
+        "check": "changed"
       }
     }
   },
@@ -1389,6 +1411,7 @@
     ],
     "expect": {
       "rubric": "A 60 min MKTG2201 catch-up block tomorrow evening exists; the skip is logged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1397,7 +1420,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "1h catch-up tomorrow evening"
+        "detail": "1h catch-up tomorrow evening",
+        "check": "changed"
       }
     }
   },
@@ -1545,6 +1569,7 @@
     ],
     "expect": {
       "rubric": "ORION treats meal prep as a legit reason, stops the escalation ladder for now, and either reschedules gym to a concrete later time or says it will check back at a stated time. Must not say \"What time or how long do you mean\", and must not send the next ladder step during the grace window.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1556,7 +1581,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym snoozed/rescheduled; ladder paused"
+        "detail": "gym snoozed/rescheduled; ladder paused",
+        "check": "changed"
       }
     }
   },
@@ -1582,6 +1608,7 @@
     ],
     "expect": {
       "rubric": "Gym start deferred about 40 min (about 20:25); ORION says it will come back then; no further nudges until then.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1590,7 +1617,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym start ~20:25; nudges held until then"
+        "detail": "gym start ~20:25; nudges held until then",
+        "check": "changed"
       }
     }
   },
@@ -1737,6 +1765,7 @@
     ],
     "expect": {
       "rubric": "Logs the nap, asks nothing silly. Notes how long if unknown and fixes the remaining day: shifts what the nap displaced, brings gym back to the plan. Conversational, one or two lines.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1745,7 +1774,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "nap logged; blocks reflowed"
+        "detail": "nap logged; blocks reflowed",
+        "check": "changed"
       }
     }
   },
@@ -1770,6 +1800,7 @@
     ],
     "expect": {
       "rubric": "Logs the sleep 14:00-15:30; rebuilds the day from 15:30: classes untouched, gym next, study after, in priority order.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1778,7 +1809,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "day rebuilt from 15:30"
+        "detail": "day rebuilt from 15:30",
+        "check": "changed"
       }
     }
   },
@@ -1925,6 +1957,7 @@
     ],
     "expect": {
       "rubric": "Marks gym done today, notes the actual time, and reflows the remainder (dinner/study) from now. Does not ask if he went when he just said so.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -1934,7 +1967,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "gym done logged"
+        "detail": "gym done logged",
+        "check": "changed"
       }
     }
   },
@@ -1959,6 +1993,7 @@
     ],
     "expect": {
       "rubric": "Gym logged as done 17:30-19:00; evening plan from 19:00 produced and booked with no overlaps.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1967,7 +2002,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "evening blocks after 19:00"
+        "detail": "evening blocks after 19:00",
+        "check": "changed"
       }
     }
   },
@@ -2124,6 +2160,7 @@
     ],
     "expect": {
       "rubric": "ORION notices this is the 7th deferral and does not just accept: books a concrete block tomorrow (named time) and says plainly it has been slipping, asks what blocks him or proposes a smaller first step. Not a canned motivational line.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {},
@@ -2134,7 +2171,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "resume block tomorrow with a time"
+        "detail": "resume block tomorrow with a time",
+        "check": "changed"
       }
     }
   },
@@ -2165,6 +2203,7 @@
     ],
     "expect": {
       "rubric": "Resume task moved to tomorrow 10:00-10:45; reply may note it has slipped repeatedly.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2173,7 +2212,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "resume tomorrow 10:00-10:45"
+        "detail": "resume tomorrow 10:00-10:45",
+        "check": "changed"
       }
     }
   },
@@ -2326,6 +2366,7 @@
     ],
     "expect": {
       "rubric": "Apologises briefly, corrects the record (MKTG2201 attended), removes the missed-class slip and any catch-up proposal. Offers no excuse-making.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -2335,7 +2376,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "slip removed; attended recorded"
+        "detail": "slip removed; attended recorded",
+        "check": "changed"
       }
     }
   },
@@ -2488,6 +2530,7 @@
     ],
     "expect": {
       "rubric": "The missed record for MKTG2201 today is corrected to attended and confirmed.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2496,7 +2539,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "attended recorded"
+        "detail": "attended recorded",
+        "check": "changed"
       }
     }
   },
@@ -2648,13 +2692,15 @@
     ],
     "expect": {
       "rubric": "Even through an outage the correction is not lost: it is queued/handled so that after recovery classes today are marked off and leave nudges are cancelled. If it cannot act, it says so honestly and does not claim Done.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Connection error"
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "classes cancelled for today after recovery; no leave nudges"
+        "detail": "classes cancelled for today after recovery; no leave nudges",
+        "check": "changed"
       }
     }
   },
@@ -2806,13 +2852,15 @@
     ],
     "expect": {
       "rubric": "Both classes cancelled today and leave reminders removed; reply confirms. Also holds in outage mode by queueing and saying so.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Connection error"
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "classes cancelled; leave reminders removed"
+        "detail": "classes cancelled; leave reminders removed",
+        "check": "changed"
       }
     }
   },
@@ -2959,6 +3007,7 @@
     ],
     "expect": {
       "rubric": "Responds with care, no canned lines. Offers to drop gym and non-essential work today, keep or review the ECON1115 decision with him (fixed unless he names it), adds rest. Asks one question or proposes; does not delete the class itself.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -2967,7 +3016,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym/side project dropped or proposal; class intact"
+        "detail": "gym/side project dropped or proposal; class intact",
+        "check": "skip"
       }
     }
   },
@@ -2992,6 +3042,7 @@
     ],
     "expect": {
       "rubric": "Gym and side project today removed, ECON1115 untouched, rest block added.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -3000,7 +3051,8 @@
       ],
       "effect": {
         "kind": "calendar",
-        "detail": "gym+side removed; econ kept"
+        "detail": "gym+side removed; econ kept",
+        "check": "changed"
       }
     }
   }

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { parseTrace, expectTools } from "../scripts/lib/eval/trace.mjs";
 
 const line = (o) => JSON.stringify(o);
@@ -8,7 +9,7 @@ const call = (id, command, text = "") => line({ type: "message", message: { role
   ...(text ? [{ type: "text", text }] : []), { type: "toolCall", id, name: "exec", arguments: { command } }] } });
 const result = (id, text, isError = false) => line({ type: "message", message: { role: "toolResult", toolCallId: id, toolName: "exec", isError, content: [{ type: "text", text }] } });
 const say = (text) => line({ type: "message", message: { role: "assistant", content: [{ type: "text", text }] } });
-const S = "/Users/nickmadaio/Desktop/ORION/scripts/";
+const S = fileURLToPath(new URL("../scripts/", import.meta.url)); // repo-relative: no machine-specific path
 const todoTurn = [
   line({ type: "session" }),
   user("add fix Orion stuff, finish my resume, send internship applications and maybe study"),

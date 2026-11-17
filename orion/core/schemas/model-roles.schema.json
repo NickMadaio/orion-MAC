@@ -53,6 +53,12 @@
         },
         "coder": {
           "$ref": "#/$defs/role"
+        },
+        "local_deep": {
+          "$ref": "#/$defs/role"
+        },
+        "unrestricted": {
+          "$ref": "#/$defs/role"
         }
       }
     },
@@ -78,7 +84,9 @@
           "embedding",
           "stt",
           "tts",
-          "coder"
+          "coder",
+          "local_deep",
+          "unrestricted"
         ]
       },
       "propertyNames": {

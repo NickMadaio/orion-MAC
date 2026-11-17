@@ -45,6 +45,7 @@
     ],
     "expect": {
       "rubric": "Gives real connected items from the knowledge base (the CS2100 class, study blocks, related labs/deadlines/people), shows the link relationships, no fabrication. If a node is missing it says so.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -53,7 +54,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -103,6 +105,7 @@
     ],
     "expect": {
       "rubric": "Lists linked nodes (study blocks, labs, midterm, related notes) accurately.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -111,7 +114,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -141,6 +145,7 @@
     ],
     "expect": {
       "rubric": "Answers from memory: a friend Nick makes plans with (e.g. dinner), no made-up surname/contact detail, offers what it knows only. Honest about gaps.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -150,7 +155,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -180,6 +186,7 @@
     ],
     "expect": {
       "rubric": "Lists only stored facts about Annika with dates; says what is missing. No phone number or invented fact.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -188,7 +195,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -214,6 +222,7 @@
     ],
     "expect": {
       "rubric": "Deletes the junk entries related to Frozen and the Carol line only (matching what was named), confirms what was removed; other memory unchanged.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -223,7 +232,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "Frozen entries deleted only"
+        "detail": "Frozen entries deleted only",
+        "check": "changed"
       }
     }
   },
@@ -249,6 +259,7 @@
     ],
     "expect": {
       "rubric": "Exactly those two entries deleted, nothing else.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -257,7 +268,8 @@
       ],
       "effect": {
         "kind": "memory",
-        "detail": "2 entries deleted"
+        "detail": "2 entries deleted",
+        "check": "changed"
       }
     }
   }

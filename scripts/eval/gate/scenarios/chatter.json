@@ -153,6 +153,7 @@
     ],
     "expect": {
       "rubric": "ORION stays silent: no reply, no memory write, no calendar change, no \"Not done\" or \"Saved:\". Empty or ignored output counts as correct.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Not done:",
@@ -162,7 +163,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -312,6 +314,7 @@
     ],
     "expect": {
       "rubric": "ORION acknowledges briefly and enters quiet mode (a quiet window or a memory preference), then does not respond to later non-addressed speech. Must not log what he says as events.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -321,7 +324,8 @@
       ],
       "effect": {
         "kind": "focus",
-        "detail": "quiet window started for 20 min"
+        "detail": "quiet window started for 20 min",
+        "check": "changed"
       }
     }
   },
@@ -479,6 +483,7 @@
     ],
     "expect": {
       "rubric": "ORION ignores all of it: no replies, no memory writes (\"Saved: Frozen\"), no \"I don't have a costume\".",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "^Saved:",
@@ -488,7 +493,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -638,6 +644,7 @@
     ],
     "expect": {
       "rubric": "Addressed to ORION: checks Saturday evening in the calendar and answers (free/busy and what is there). May offer to hold the slot but does not create anything without his go-ahead.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -646,7 +653,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change unless he confirms"
+        "detail": "no change unless he confirms",
+        "check": "unchanged"
       }
     }
   },
@@ -804,6 +812,7 @@
     ],
     "expect": {
       "rubric": "Silent. No reminder (\"call mom Sunday\") is created from speech not addressed to ORION, no reply at all.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Reminder set",
@@ -811,7 +820,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no reminders created"
+        "detail": "no reminders created",
+        "check": "unchanged"
       }
     }
   },
@@ -839,6 +849,7 @@
     ],
     "expect": {
       "rubric": "Reminder for Sunday 18:00 \"call mom\" created; reply confirms the time.",
+      "rubric_kind": "tone",
       "reply_must": [
         {},
         {}
@@ -848,7 +859,8 @@
       ],
       "effect": {
         "kind": "reminder",
-        "detail": "Sun 18:00 call mom"
+        "detail": "Sun 18:00 call mom",
+        "check": "changed"
       }
     }
   },
@@ -1002,6 +1014,7 @@
     ],
     "expect": {
       "rubric": "Silent. Not a question for ORION. No \"Go on.\" filler, no memory writes.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Go on",
@@ -1010,7 +1023,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -1160,6 +1174,7 @@
     ],
     "expect": {
       "rubric": "Answers: the simple spending multiplier 1/(1-MPC) (also 1/MPS), concise. No calendar changes.",
+      "rubric_kind": "tone",
       "reply_must": [
         {}
       ],
@@ -1168,7 +1183,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   },
@@ -1326,6 +1342,7 @@
     ],
     "expect": {
       "rubric": "Silent. No crisis response (\"Are you safe right now?\"), no alarm created, no memory writes. Fiction/TV audio is not Nick.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Are you safe",
@@ -1335,7 +1352,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no alarm, no reminders"
+        "detail": "no alarm, no reminders",
+        "check": "unchanged"
       }
     }
   },
@@ -1485,6 +1503,7 @@
     ],
     "expect": {
       "rubric": "Recognises hyperbole: a light human reply, not a crisis protocol, possibly offering a break or help with the set. No false alarm.",
+      "rubric_kind": "tone",
       "reply_must_not": [
         "What time or how long do you mean",
         "Are you safe right now",
@@ -1493,7 +1512,8 @@
       ],
       "effect": {
         "kind": "none",
-        "detail": "no change"
+        "detail": "no change",
+        "check": "unchanged"
       }
     }
   }

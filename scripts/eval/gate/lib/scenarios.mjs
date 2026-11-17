@@ -3,6 +3,7 @@
 //      turns: [{ text, spoken?, replyToOutreach? }],
 //      expect: { rubric, reply_must?: [regex], reply_must_not?: [regex], effect?: { kind, detail } } }]
 import { UNMET_REASONS } from "./fixtures.mjs";
+import { summarizeGrading, summaryLine } from "./grading.mjs";
 
 export function validateScenarios(list) {
   const errors = [];
@@ -20,8 +21,10 @@ export function validateScenarios(list) {
     if (!Array.isArray(s.turns) || s.turns.length === 0) bad("turns must be a non-empty array");
     else s.turns.forEach((t, j) => { if (typeof t?.text !== "string" || !t.text.trim()) bad(`turns[${j}].text is required`); });
     if (!s.expect || typeof s.expect.rubric !== "string") bad("expect.rubric is required");
+    if (s.expect?.rubric_kind !== undefined && s.expect.rubric_kind !== "tone") bad('expect.rubric_kind must be "tone" (a rubric is advisory; put checkable facts in reply_must or effect)');
+    if (s.expect?.effect?.check !== undefined && !["changed", "unchanged", "skip"].includes(s.expect.effect.check)) bad('expect.effect.check must be "changed", "unchanged" or "skip"');
     for (const k of ["reply_must", "reply_must_not"]) {
-      for (const pat of s.expect?.[k] ?? []) { try { toRegex(pat); } catch (e) { bad(`${k} has an invalid regex ${JSON.stringify(pat)}: ${e.message}`); } }
+      for (const pat of s.expect?.[k] ?? []) { if (typeof pat !== "string") continue; try { toRegex(pat); } catch (e) { bad(`${k} has an invalid regex ${JSON.stringify(pat)}: ${e.message}`); } }
     }
     if (s.setup?.state && (typeof s.setup.state !== "object" || Array.isArray(s.setup.state))) bad("setup.state must be an object of file name to JSON");
     validateSetupTiming(s, bad);
@@ -75,14 +78,19 @@ export function toRegex(pattern) {
 /** reply_must is checked against the LAST turn's reply; reply_must_not against every turn's. */
 export function checkReplies(expect, replies) {
   const last = replies.at(-1) ?? "";
-  const must = (expect.reply_must ?? []).map((pattern) => ({ pattern, pass: toRegex(pattern).test(last) }));
-  const mustNot = (expect.reply_must_not ?? []).map((pattern) => ({ pattern, pass: !replies.some((r) => toRegex(pattern).test(r ?? "")) }));
-  return { reply_must: must, reply_must_not: mustNot, passed: [...must, ...mustNot].every((c) => c.pass), hasRegex: must.length + mustNot.length > 0 };
+  // A pattern that is not a string (a RegExp run through JSON.stringify becomes {}) cannot be checked: it is reported
+  // as unusable (pass: null) and left out of the verdict, never matched against "[object Object]".
+  const usable = (pattern) => typeof pattern === "string";
+  const must = (expect.reply_must ?? []).map((pattern) => (usable(pattern) ? { pattern, pass: toRegex(pattern).test(last) } : { pattern, pass: null, unusable: true }));
+  const mustNot = (expect.reply_must_not ?? []).map((pattern) => (usable(pattern) ? { pattern, pass: !replies.some((r) => toRegex(pattern).test(r ?? "")) } : { pattern, pass: null, unusable: true }));
+  const real = [...must, ...mustNot].filter((c) => c.pass !== null);
+  return { reply_must: must, reply_must_not: mustNot, passed: real.every((c) => c.pass), hasRegex: real.length > 0, unusable: must.length + mustNot.length - real.length };
 }
 
 export function summarize(results) {
+  const grading = summarizeGrading(results);
   const ran = results.filter((r) => !r.skipped);
-  const graded = ran.filter((r) => r.checks?.hasRegex);
+  const graded = ran.filter((r) => r.checks?.hasCode ?? r.checks?.hasRegex);
   const group = (key) => Object.fromEntries([...new Set(graded.map((r) => r[key]))].map((k) => {
     const rs = graded.filter((r) => r[key] === k);
     return [k, { pass: rs.filter((r) => r.checks.passed).length, fail: rs.filter((r) => !r.checks.passed).length }];
@@ -90,6 +98,7 @@ export function summarize(results) {
   const lat = ran.flatMap((r) => r.turns.map((t) => t.latencyMs)).filter((n) => Number.isFinite(n));
   return {
     items: results.length, ran: ran.length, skipped: results.length - ran.length,
+    code: grading.code, tone: grading.tone, unusablePatterns: grading.unusablePatterns, unchecked: grading.code.unchecked, line: summaryLine(grading),
     regex: { graded: graded.length, pass: graded.filter((r) => r.checks.passed).length, fail: graded.filter((r) => !r.checks.passed).length, failing: graded.filter((r) => !r.checks.passed).map((r) => r.id) },
     byArea: group("area"), byWording: group("wording"),
     turnErrors: ran.filter((r) => r.turns.some((t) => !t.reply)).map((r) => r.id),
