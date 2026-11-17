@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+/*
+ orion-site: the offline site-scout tools. No command here touches the network.
+
+   orion-site score <file.html> [--url U] [--year Y] [--pagespeed N] [--wayback Y] [--json]
+   orion-site discover --fixture <overpass.json> [--town T] [--json]
+   orion-site cards --fixture <dir> [--root <dir>] [--year Y] [--town T] [--store <dir>] [--json]
+
+ cards reads only inside --root (default: the fixture dir's parent, so a set can share ../pages).
+   orion-site calibrate <labels.json> [--json]
+*/
+import { readFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
+import { scorePage } from './lib/site/score.mjs';
+import { calibrate } from './lib/site/calibrate.mjs';
+import { discoverFromResponse, scoreCandidates, classifyCandidates, cardsFor, loadFixtureDir } from './lib/site/pipeline.mjs';
+import { createStore } from './lib/site/store.mjs';
+
+const out = text => process.stdout.write(`${text}\n`);
+const fail = (text, code = 1) => { process.stderr.write(`orion-site: ${text}\n`); process.exit(code); };
+const USAGE = 'usage: orion-site score <file.html> | discover --fixture <file> | cards --fixture <dir> | calibrate <labels.json>';
+
+function parseArgs(argv) {
+  const flags = {}; const rest = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--json') flags.json = true;
+    else if (argv[i].startsWith('--')) { flags[argv[i].slice(2)] = argv[i + 1]; i += 1; }
+    else rest.push(argv[i]);
+  }
+  return { flags, rest };
+}
+
+const { flags, rest } = parseArgs(process.argv.slice(2));
+const [verb, target] = rest;
+const year = Number(flags.year) || new Date().getFullYear();
+const print = (value, text) => out(flags.json ? JSON.stringify(value, null, 2) : text);
+
+try {
+  if (verb === 'score') {
+    if (!target) fail('score needs an html file', 2);
+    const { raw, ...result } = scorePage({ html: readFileSync(target, 'utf8'), url: flags.url ?? '', nowYear: year,
+      pageSpeed: flags.pagespeed === undefined ? undefined : Number(flags.pagespeed),
+      waybackYear: flags.wayback === undefined ? undefined : Number(flags.wayback) });
+    print(result, `${result.band.toUpperCase()} (${result.points} points)\n${result.reasons.map((r, i) => `  ${i + 1}. ${r}`).join('\n') || '  no problems found'}`);
+  } else if (verb === 'discover') {
+    if (!flags.fixture) fail('discover needs --fixture <overpass.json> (live discovery is not wired)', 2);
+    const list = discoverFromResponse(JSON.parse(readFileSync(flags.fixture, 'utf8')), flags.town);
+    print(list, list.map(c => `${c.osmId}  ${c.name} (${c.category}) ${c.hasWebsiteTag ? c.website : c.socialOnly ? 'social only' : 'no website'}`).join('\n') || 'no candidates');
+  } else if (verb === 'cards') {
+    if (!flags.fixture) fail('cards needs --fixture <dir>', 2);
+    const dir = resolve(flags.fixture);
+    const f = loadFixtureDir(basename(dir), { root: flags.root ? resolve(flags.root) : dirname(dir) });
+    const scored = scoreCandidates(discoverFromResponse(f.overpass, flags.town), f.pageHtml, year);
+    const cards = cardsFor(classifyCandidates(scored, f.companies), f.ratings);
+    if (flags.store) {
+      const store = createStore({ root: flags.store });
+      for (const { candidate } of scored) { await store.upsert(candidate); await store.setStatus(candidate.osmId, 'carded'); }
+    }
+    print(cards.map(c => c.json), cards.map(c => c.text).join('\n\n'));
+  } else if (verb === 'calibrate') {
+    if (!target) fail('calibrate needs a labels file', 2);
+    const r = calibrate(target);
+    print(r, `${r.agree}/${r.total} agree (${Math.round(r.accuracy * 100)}%)\n${r.disagreements.map(d => `  ${d.file}: expected ${d.expected}, got ${d.got} (${d.points})`).join('\n')}`);
+  } else { fail(USAGE, 2); }
+} catch (error) { fail(error.message); }

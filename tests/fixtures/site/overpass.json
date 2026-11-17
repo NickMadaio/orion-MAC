@@ -1,0 +1,15 @@
+{
+  "version": 0.6,
+  "generator": "hand-written test fixture, invented businesses",
+  "elements": [
+    {"type":"node","id":1001,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Harbour Bean Cafe","website":"http://harbourbean.example/","phone":"+44 1000 000001","addr:housenumber":"4","addr:street":"Quay Road","addr:postcode":"ZZ1 1AA","addr:city":"Testford"}},
+    {"type":"way","id":2002,"center":{"lat":0,"lon":0},"tags":{"amenity":"cafe","name":"Harbour Bean Cafe","addr:postcode":"ZZ1 1AA","addr:city":"Testford","opening_hours":"Mo-Fr 08:00-16:00"}},
+    {"type":"node","id":1003,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Mill Lane Tea Room","website":"https://www.facebook.com/milllanetea","addr:city":"Testford","addr:postcode":"ZZ1 2BB"}},
+    {"type":"node","id":1004,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Corner Crumb Ltd","contact:website":"crumbcorner.example","contact:phone":"+44 1000 000004","addr:city":"Testford","addr:postcode":"ZZ1 3CC"}},
+    {"type":"node","id":1005,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Instagram Only Espresso","contact:instagram":"espresso_example","addr:city":"Testford","addr:postcode":"ZZ1 4DD"}},
+    {"type":"node","id":1006,"lat":0,"lon":0,"tags":{"amenity":"cafe","addr:city":"Testford"}},
+    {"type":"node","id":1007,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Bad Scheme Cafe","website":"javascript:alert(1)","addr:postcode":"ZZ1 5EE"}},
+    {"type":"node","id":1008,"lat":0,"lon":0,"tags":{"amenity":"cafe","name":"Plain Cup","addr:postcode":"ZZ1 6FF"}},
+    {"type":"relation","id":"x","tags":{"name":"Broken Id"}}
+  ]
+}

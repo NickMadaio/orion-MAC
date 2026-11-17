@@ -1,0 +1,7 @@
+{
+  "http://sunnyside-bakery.example/": "../pages/old-frontpage.html",
+  "http://brightwater-plumbing.example/": "../pages/old-jquery-tables.html",
+  "https://elmstreet-hair.example/": "../pages/old-marquee.html",
+  "https://larkspur-florist.example/": "../pages/mid-no-viewport.html",
+  "https://fernhill-coffee.example/": "../pages/new-modern.html"
+}

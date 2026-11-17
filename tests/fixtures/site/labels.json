@@ -1,0 +1,15 @@
+{
+  "nowYear": 2026,
+  "pages": [
+    { "file": "pages/old-frontpage.html", "url": "http://sunnyside-bakery.example/", "expected": "old" },
+    { "file": "pages/old-jquery-tables.html", "url": "http://brightwater-plumbing.example/", "expected": "old" },
+    { "file": "pages/old-marquee.html", "url": "https://elmstreet-hair.example/", "expected": "old" },
+    { "file": "pages/mid-no-viewport.html", "url": "https://larkspur-florist.example/", "expected": "mid" },
+    { "file": "pages/mid-wordpress-old.html", "url": "https://quayside-electric.example/", "expected": "mid" },
+    { "file": "pages/mid-anchors-alt.html", "url": "https://oldmill-restaurant.example/", "expected": "mid" },
+    { "file": "pages/new-modern.html", "url": "https://fernhill-coffee.example/", "expected": "new" },
+    { "file": "pages/new-wordpress-current.html", "url": "https://marlow-plumbing.example/", "expected": "new" },
+    { "file": "pages/new-no-description.html", "url": "https://petalandstem.example/", "expected": "new" },
+    { "file": "pages/new-dated-footer.html", "url": "https://greenfield-bakery.example/", "expected": "new" }
+  ]
+}

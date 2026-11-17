@@ -1,0 +1,12 @@
+{
+  "generator": "hand-written test fixture, invented businesses",
+  "elements": [
+    {"type":"node","id":5001,"tags":{"shop":"bakery","name":"Sunny Side Bakery","website":"http://sunnyside-bakery.example/","phone":"+44 1000 000101","addr:city":"Testford","addr:postcode":"ZZ2 1AA"}},
+    {"type":"node","id":5002,"tags":{"craft":"plumber","name":"Brightwater Plumbing Ltd","website":"http://brightwater-plumbing.example/","phone":"+44 1000 000102","addr:city":"Testford","addr:postcode":"ZZ2 2BB"}},
+    {"type":"node","id":5003,"tags":{"shop":"hairdresser","name":"Elm Street Hair Studio","website":"https://elmstreet-hair.example/","phone":"+1 555 0100","addr:city":"Testford","addr:postcode":"ZZ2 3CC"}},
+    {"type":"node","id":5004,"tags":{"shop":"florist","name":"Larkspur Florist","website":"https://larkspur-florist.example/","phone":"+44 1000 000104","addr:city":"Testford","addr:postcode":"ZZ2 4DD"}},
+    {"type":"node","id":5005,"tags":{"amenity":"cafe","name":"Fernhill Coffee","website":"https://fernhill-coffee.example/","addr:city":"Testford","addr:postcode":"ZZ2 5EE"}},
+    {"type":"node","id":5006,"tags":{"amenity":"cafe","name":"Tideway Cafe","contact:facebook":"tidewaycafe","addr:city":"Testford","addr:postcode":"ZZ2 6FF"}},
+    {"type":"node","id":5007,"tags":{"amenity":"cafe","name":"Unreachable Bistro","website":"http://unreachable-bistro.example/","addr:city":"Testford","addr:postcode":"ZZ2 7GG"}}
+  ]
+}
