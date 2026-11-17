@@ -19,12 +19,12 @@ function fakeApi() {
         },
     };
 }
-function harness(decision) {
+function harness(decision, at = new Date(2030, 9, 3, 23, 25)) {
     const f = fakeApi();
     const flows = [];
     const reads = [];
     registerLocalRouting(f.api, { warm: false, mode: "on", logPath: join(mkdtempSync(join(tmpdir(), "lr-")), "r.jsonl"),
-        now: () => new Date(2030, 9, 3, 23, 25), // pinned: after midnight "tomorrow" is read another way (late-tomorrow.ts)
+        now: () => at, // pinned: after midnight "tomorrow" is read another way (late-tomorrow.ts)
         decideImpl: async () => decision, clock: () => "Thu 23:25", brainSearch: async () => "",
         scheduleFlow: async (m) => { flows.push(m); return { outcome: "fallback", reason: "a question, not a change" }; },
         readDay: async (tomorrow) => { reads.push(tomorrow); return "B1 09:00–10:30 CS1800 Lecture (FIXED) (already happened)\nB2 13:45–14:30 CS Lab (FIXED) (already happened)"; } });
@@ -36,6 +36,7 @@ function harness(decision) {
     };
     return { turn, flows, reads };
 }
+const PINNED = new Date(2030, 9, 3, 23, 25); // the harness clock; never the wall clock
 describe("local routing — day questions without a question mark (2026-10-15 sweep)", () => {
     // The tomorrow flag follows meansTomorrow (before 5 AM "tomorrow" is today's date), so the test holds at any hour.
     const questions = [
@@ -52,7 +53,7 @@ describe("local routing — day questions without a question mark (2026-10-15 sw
             const h = harness({ move: "escalate", tier: "quick" });
             const prompt = await h.turn(said);
             expect(h.flows).toEqual([]);
-            expect(h.reads).toEqual([tomorrow && meansTomorrow(said)]);
+            expect(h.reads).toEqual([tomorrow && meansTomorrow(said, PINNED)]);
             // r8 (2026-10-16): the stub day has no gym or nap block, so code says so itself instead of handing the day to the worker.
             expect(prompt).toMatch(/^[\s\S]*(read just now from his calendar|There's no (gym|nap) block on your calendar today|Your CS Lab|Yes — CS Lab|You have no more classes|Your next class)/);
         });
@@ -79,5 +80,24 @@ describe("isQuestion — a 'when' clause is a plan, not a question", () => {
     }
     for (const said of ["when is my next class", "when does lab start", "when's my gym thing today", "when do i eat dinner", "when are my classes tomorrow", "when should i go to the gym today", "when can i nap today"]) {
         it(`"${said}" is a question`, () => expect(isQuestion(said)).toBe(true));
+    }
+    // One rule for question and change: between 00:00 and 05:00 "tomorrow" is today's date (HANDOFF.md). Asserted at fixed hours.
+    const hours = [
+        ["14:00", new Date(2030, 9, 3, 14, 0), true],
+        ["23:30", new Date(2030, 9, 3, 23, 30), true],
+        ["00:30", new Date(2030, 9, 4, 0, 30), false],
+        ["03:10", new Date(2030, 9, 4, 3, 10), false],
+        ["05:10", new Date(2030, 9, 4, 5, 10), true],
+    ];
+    for (const [label, at, tomorrow] of hours) {
+        it(`at ${label}: meansTomorrow is ${tomorrow} and the day question reads the same day`, async () => {
+            expect(meansTomorrow("whats on tomorrow morning", at)).toBe(tomorrow);
+            expect(meansTomorrow("move gym to 7 tomorrow", at)).toBe(tomorrow);
+            expect(meansTomorrow("whats on today", at)).toBe(false);
+            const h = harness({ move: "escalate", tier: "quick" }, at);
+            await h.turn("whats on tomorrow morning");
+            expect(h.flows).toEqual([]);
+            expect(h.reads).toEqual([false === tomorrow ? false : true]);
+        });
     }
 });
