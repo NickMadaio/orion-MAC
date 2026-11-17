@@ -5,3 +5,4 @@
 tests/agentic-awake.test.mjs a spawns a real macOS caffeinate -w process
 tests/agentic-halts.test.mjs d process-kill timing; flaky under load and hangs when sandboxed
 tests/mail-hardening.test.mjs d 400 ms process-group timeout race; failed once under load
+tests/owner-only-scripts.test.mjs b runs orion-mode/orion-automation against the installed plugin in ~/.openclaw

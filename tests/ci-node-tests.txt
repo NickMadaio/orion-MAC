@@ -13,6 +13,7 @@ tests/agentic-projects.test.mjs
 tests/agentic-regressions.test.mjs
 tests/agentic-remote-agent.test.mjs
 tests/agentic-supervisor.test.mjs
+tests/approve-caller.test.mjs
 tests/apps.test.mjs
 tests/attention-budget.test.mjs
 tests/attention-cli-collect.test.mjs
@@ -65,6 +66,7 @@ tests/canvas-brain.test.mjs
 tests/chat-log-audit.test.mjs
 tests/chat-text.test.mjs
 tests/clock-isolation.test.mjs
+tests/connect-host-pin.test.mjs
 tests/connect-status-keychain.test.mjs
 tests/connect.test.mjs
 tests/curiosity-controls.test.mjs
@@ -109,6 +111,7 @@ tests/jobs-injection.test.mjs
 tests/jobs-security.test.mjs
 tests/jobs-toy.test.mjs
 tests/jobs-units.test.mjs
+tests/journal-conversations.test.mjs
 tests/keep-always.test.mjs
 tests/knowledge-graph.test.mjs
 tests/knowledge-overrides.test.mjs
@@ -173,6 +176,10 @@ tests/mail-accounts.test.mjs
 tests/mail-failures.test.mjs
 tests/mail-score.test.mjs
 tests/mail-watch.test.mjs
+tests/memory-curated-index.test.mjs
+tests/memory-real-session.test.mjs
+tests/memory-recall-check.test.mjs
+tests/memory-recall-fusion.test.mjs
 tests/morning-brief-rank.test.mjs
 tests/music.test.mjs
 tests/night-hush.test.mjs
@@ -247,6 +254,13 @@ tests/selfcheck-diagnose.test.mjs
 tests/selfcheck-turns.test.mjs
 tests/selfdoc-no-web.test.mjs
 tests/selffix-plan.test.mjs
+tests/site-candidates.test.mjs
+tests/site-fetcher.test.mjs
+tests/site-fixture-root.test.mjs
+tests/site-net-guard.test.mjs
+tests/site-overpass.test.mjs
+tests/site-score.test.mjs
+tests/site-scout-job.test.mjs
 tests/sleep-nudge.test.mjs
 tests/sleep-plan-alarms.test.mjs
 tests/sleep-plan.test.mjs
