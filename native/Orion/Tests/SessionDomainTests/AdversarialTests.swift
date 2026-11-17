@@ -285,7 +285,22 @@ final class AdversarialTests: XCTestCase {
 
     // MARK: Staleness
 
+    /// Fixed UTC-5 so day-rollover results do not depend on the machine's zone.
+    /// Harness time starts 07:00 in it, so 18 h later is 01:00 -- still the same
+    /// logical day (the cutoff is 04:00).
+    private func withFixedRolloverCalendar(_ body: () -> Void) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: -5 * 3600)!
+        SessionReconciler.rolloverCalendar = calendar
+        defer { SessionReconciler.rolloverCalendar = nil }
+        body()
+    }
+
     func testAPausedSessionSurvivesANightButNotTwo() {
+        withFixedRolloverCalendar { aPausedSessionSurvivesANight() }
+    }
+
+    private func aPausedSessionSurvivesANight() {
         // The design is that a paused session waits forever -- "closing the
         // dashboard is not leaving the session". That is right for an hour and
         // wrong for a fortnight: a real session paused 2026-08-12 was still
@@ -315,16 +330,122 @@ final class AdversarialTests: XCTestCase {
         harness.advance(seconds: 30)
         harness.send(.pause)
 
-        for _ in 0..<5 {
+        withFixedRolloverCalendar {
+            // Restarts every 4.5 h used to reset the clock forever. The pause
+            // is now measured from when it began, so they no longer can.
+            for _ in 0..<3 {
+                harness.advanceWhileDown(seconds: SessionReconciler.staleAfter / 4)
+                _ = harness.noteProcessStart()
+            }
+            XCTAssertEqual(harness.status, .paused, "13.5 h in, still inside the window")
+
             harness.advanceWhileDown(seconds: SessionReconciler.staleAfter / 4)
             _ = harness.noteProcessStart()
+            harness.advanceWhileDown(seconds: SessionReconciler.staleAfter / 4)
+            _ = harness.noteProcessStart()
+            XCTAssertEqual(harness.status, .readyToAbandon,
+                           "heartbeats and restarts do not keep a pause alive past 18 h")
         }
-        XCTAssertEqual(harness.status, .paused,
-                       "regular restarts keep resetting the clock, by design")
+    }
 
-        harness.advanceWhileDown(seconds: SessionReconciler.staleAfter + 60)
-        XCTAssertEqual(harness.status, .readyToAbandon,
-                       "but a long silence after the last one still expires it")
+    func testPausedAtIsThePauseStartNotTheLastHeartbeat() {
+        let harness = Harness()
+        harness.start()
+        harness.advance(seconds: 30)
+        harness.send(.pause)
+        let pauseWall = harness.wall.now
+        harness.advance(minutes: 10)
+        _ = harness.noteProcessStart()
+        let now = harness.now()
+        XCTAssertEqual(now.status, .paused)
+        XCTAssertEqual(now.pausedAt, pauseWall)
+    }
+
+    func testResumeClearsPausedAt() {
+        let harness = Harness()
+        harness.start()
+        harness.advance(seconds: 30)
+        harness.send(.pause)
+        harness.advance(minutes: 1)
+        harness.send(.resume)
+        XCTAssertNil(harness.now().pausedAt)
+    }
+
+    func testAPauseAcrossTheDayRolloverExpires() {
+        // Paused at 23:00 (UTC-5): at 04:10 the next morning it is a new logical
+        // day, so the pause is a leftover though only five hours old.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: -5 * 3600)!
+        SessionReconciler.rolloverCalendar = calendar
+        defer { SessionReconciler.rolloverCalendar = nil }
+
+        let harness = Harness()
+        harness.start(Harness.fullPlan())
+        harness.advance(seconds: 30)
+        harness.advanceWhileDown(seconds: 16 * 3600 - 30)   // 23:00 local
+        _ = harness.noteProcessStart()
+        harness.send(.pause)
+        harness.advanceWhileDown(seconds: 4 * 3600)         // 03:00, same logical day
+        XCTAssertEqual(harness.status, .paused)
+        harness.advanceWhileDown(seconds: 70 * 60)          // 04:10, new day
+        XCTAssertEqual(harness.status, .readyToAbandon)
+    }
+
+    func testAShortPauseStraddlingTheRolloverSurvives() {
+        // Paused at 03:55 (UTC-5): five minutes later it is 04:00, a new logical
+        // day. A pause that short is a coffee, not yesterday's leftover, and
+        // abandoning it would end the session for good.
+        withFixedRolloverCalendar {
+            let harness = Harness()
+            harness.start(Harness.fullPlan())
+            harness.advance(seconds: 30)
+            harness.advanceWhileDown(seconds: 20 * 3600 + 55 * 60 - 30)  // 03:55 local
+            _ = harness.noteProcessStart()
+            harness.send(.pause)
+            harness.advanceWhileDown(seconds: 5 * 60)                    // 04:00
+            XCTAssertEqual(harness.status, .paused,
+                           "a five-minute pause across 04:00 is still a session")
+            harness.advanceWhileDown(seconds: 2 * 3600)                  // 06:00
+            XCTAssertEqual(harness.status, .paused,
+                           "still under the minimum pause length")
+            harness.advanceWhileDown(seconds: SessionReconciler.minimumPauseBeforeRolloverExpiry)
+            XCTAssertEqual(harness.status, .readyToAbandon,
+                           "crossed the rollover and lasted past the minimum")
+        }
+    }
+
+    func testAPauseFromThePreviousEveningExpiresNextMorning() {
+        withFixedRolloverCalendar {
+            let harness = Harness()
+            harness.start(Harness.fullPlan())
+            harness.advance(seconds: 30)
+            harness.advanceWhileDown(seconds: 14 * 3600 - 30)            // 21:00 local
+            _ = harness.noteProcessStart()
+            harness.send(.pause)
+            harness.advanceWhileDown(seconds: 11 * 3600)                 // 08:00 next day
+            XCTAssertEqual(harness.status, .readyToAbandon)
+        }
+    }
+
+    func testARunningSessionAcrossTheRolloverIsNeverAbandoned() {
+        withFixedRolloverCalendar {
+            // Starts 03:50 local and runs through 04:00 without a pause.
+            let harness = Harness(start: Harness.defaultStart.addingTimeInterval(20 * 3600 + 50 * 60))
+            harness.start(Harness.fullPlan())
+            harness.advance(minutes: 20)                                 // 04:10
+            XCTAssertEqual(harness.status, .running(.focus))
+            XCTAssertNil(harness.now().pausedAt)
+        }
+    }
+
+    func testRolloverHelperUsesTheFourAmCutoff() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = Date(timeIntervalSince1970: 1_772_452_800)   // 2026-03-02 12:00 UTC
+        XCTAssertFalse(SessionReconciler.crossedDayRollover(
+            from: day, to: day.addingTimeInterval(15 * 3600), calendar: calendar))   // 03:00 next day
+        XCTAssertTrue(SessionReconciler.crossedDayRollover(
+            from: day, to: day.addingTimeInterval(16.5 * 3600), calendar: calendar)) // 04:30 next day
     }
 
     func testAServedSessionIsCompletedNotAbandoned() {

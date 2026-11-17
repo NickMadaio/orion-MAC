@@ -121,6 +121,26 @@ final class IPCTests: XCTestCase {
         XCTAssertEqual(response.phase, "early")
     }
 
+    func testPausedStatusCarriesPausedAtAndRunningDoesNot() throws {
+        XCTAssertTrue(ipc.start())
+        var response = try ask(SessionRequest(op: "start", requestId: "p1", task: "t",
+                                              focusBlocks: 2, focusMinutes: 2, restMinutes: 1))
+        XCTAssertNil(response.pausedAt, "running replies are unchanged")
+
+        wall.advance(30); monotonic.advance(30)
+        let pauseWall = wall.now
+        response = try ask(SessionRequest(op: "pause", requestId: "p2"))
+        wall.advance(20); monotonic.advance(20)
+
+        response = try ask(SessionRequest(op: "status", requestId: "p3"))
+        XCTAssertEqual(response.status, "paused")
+        let expected = ISO8601DateFormatter().string(from: pauseWall)
+        XCTAssertEqual(response.pausedAt, expected, "the pause start, not the time of the query")
+
+        response = try ask(SessionRequest(op: "resume", requestId: "p4"))
+        XCTAssertNil(response.pausedAt)
+    }
+
     func testARetriedCommandComesBackAsADuplicateAndStillReadsAsSuccess() throws {
         XCTAssertTrue(ipc.start())
         _ = try ask(SessionRequest(op: "start", requestId: "r1", task: "t",

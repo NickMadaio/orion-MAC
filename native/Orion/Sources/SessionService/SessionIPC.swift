@@ -91,6 +91,9 @@ public struct SessionResponse: Codable, Sendable {
     public var approximate: Bool?
     public var dayKey: String?
     public var sessionId: String?
+    /// ISO-8601 time the current pause began. Additive: only present while
+    /// paused, so older readers ignore it.
+    public var pausedAt: String?
 
     /// Set when the state file could not be read. Distinct from "no session",
     /// which is `status: "none"`.
@@ -155,6 +158,7 @@ public enum SessionWire {
             response.phase = kind.rawValue
         case .paused:
             response.status = "paused"
+            response.pausedAt = now.pausedAt.map { ISO8601DateFormatter().string(from: $0) }
         case .waitingForReturn:
             response.status = "waiting-for-return"
         case .readyToComplete:

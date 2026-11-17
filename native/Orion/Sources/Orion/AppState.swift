@@ -2478,7 +2478,7 @@ final class AppState: ObservableObject {
                 return
             }
             do {
-                result = .success(try GatewayClient.ask(request, session: chatSession, model: chatModel, replyTo: tappedReply, cancellation: cancellation))
+                result = .success(try GatewayClient.ask(request, session: chatSession, model: chatModel, replyTo: tappedReply, cancellation: cancellation, sentAt: turnStartedAt))
             } catch {
                 result = .failure(error)
             }

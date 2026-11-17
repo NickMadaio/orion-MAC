@@ -109,6 +109,12 @@ public struct Reconciliation: Equatable, Sendable {
     /// the service's job; producing them is this function's.
     public let effects: [Effect]
 
+    /// Wall time the CURRENT pause began, when the session is paused (or was
+    /// abandoned out of a pause). Nil otherwise. Callers outside the app (the
+    /// outreach gate) cannot derive it, and without it a pause from days ago
+    /// reads as brand new on every probe.
+    public let pausedAt: Date?
+
     public var isOver: Bool { status.isOver }
 }
 
@@ -150,6 +156,44 @@ public enum SessionReconciler {
     /// enough that yesterday's session is never today's.
     public static let staleAfter: TimeInterval = 18 * 60 * 60
 
+    /// The calendar used to decide whether a pause crossed a day rollover.
+    /// Tests substitute a fixed-zone calendar; the app uses the system one.
+    nonisolated(unsafe) public static var rolloverCalendar: Calendar?
+
+    /// A pause that crosses the day rollover expires only once it has also
+    /// lasted at least this long. Without it, a pause begun at 03:55 became
+    /// `readyToAbandon` at 04:00 and the service wrote the abandon for good.
+    /// Three hours: longer than any deliberate break, shorter than a night.
+    public static let minimumPauseBeforeRolloverExpiry: TimeInterval = 3 * 60 * 60
+
+    /// First hour of a logical day. Matches `OrionDay.cutoffHour` in the app
+    /// (kept as a literal because this module cannot import the app target).
+    public static let dayCutoffHour = 4
+
+    /// When the current pause began: the wall time of the latest `paused`
+    /// event not followed by a `resumed`. Heartbeats do not move it.
+    static func currentPauseStart(in events: [LifecycleEvent]) -> Date? {
+        var start: Date?
+        for event in events {
+            switch event.kind {
+            case .paused: if start == nil { start = event.stamp.wall }
+            case .resumed: start = nil
+            default: break
+            }
+        }
+        return start
+    }
+
+    /// True when `pausedAt` belongs to an earlier logical day than `now`
+    /// (days roll over at `dayCutoffHour` local time, not midnight).
+    static func crossedDayRollover(from pausedAt: Date, to now: Date, calendar: Calendar) -> Bool {
+        func day(_ date: Date) -> DateComponents {
+            let shifted = date.addingTimeInterval(-TimeInterval(dayCutoffHour) * 3600)
+            return calendar.dateComponents([.year, .month, .day], from: shifted)
+        }
+        return day(pausedAt) != day(now)
+    }
+
     public static func reconcile(_ state: SessionState, now: ClockStamp) -> Reconciliation {
         let plan = state.plan
         let totalFocusBlocks = plan.phases.filter(\.kind.isFocus).count
@@ -160,7 +204,7 @@ public enum SessionReconciler {
                 servedInPhase: 0, remainingInPhase: plan.phase(at: 0)?.plannedDuration ?? 0,
                 servedFocus: 0, servedRest: 0, uncounted: 0,
                 completedFocusBlocks: 0, totalFocusBlocks: totalFocusBlocks,
-                approximate: false, effects: []
+                approximate: false, effects: [], pausedAt: nil
             )
         }
 
@@ -180,6 +224,24 @@ public enum SessionReconciler {
         // makes the rule conservative: it can only ever fire later, never sooner.
         let lastEventWall = state.events.last?.stamp.wall ?? startEvent.at
 
+        // A pause is measured from when it BEGAN, not from the last heartbeat:
+        // a process that keeps saying "still here" is not someone intending to
+        // resume, and on 2026-11-16 a pause from 11-10 was still "paused"
+        // because every restart refreshed the last-event time. A pause that
+        // crosses a day rollover AND has lasted
+        // `minimumPauseBeforeRolloverExpiry` is yesterday's leftover and expires too.
+        let pausedAt = currentPauseStart(in: state.events)
+        let calendar = rolloverCalendar ?? Calendar.current
+        let pauseExpired: Bool = {
+            guard walk.paused, let pausedAt else { return false }
+            let pausedFor = now.wall.timeIntervalSince(pausedAt)
+            if pausedFor >= staleAfter { return true }
+            // Both conditions: yesterday's pause AND not a short one that
+            // merely straddles the cutoff.
+            return pausedFor >= minimumPauseBeforeRolloverExpiry
+                && crossedDayRollover(from: pausedAt, to: now.wall, calendar: calendar)
+        }()
+
         let status: SessionStatus = {
             if let recordedFinish { return .finished(recordedFinish.reason) }
             if walk.everythingServed { return .readyToComplete }
@@ -187,6 +249,7 @@ public enum SessionReconciler {
             // terminal readings above: a session that actually finished, or that
             // served all its time, is not "abandoned" just because nobody
             // archived it promptly.
+            if pauseExpired { return .readyToAbandon }
             if (walk.paused || walk.waitingForReturn),
                now.wall.timeIntervalSince(lastEventWall) >= staleAfter {
                 return .readyToAbandon
@@ -221,7 +284,8 @@ public enum SessionReconciler {
             completedFocusBlocks: walk.completedFocusBlocks,
             totalFocusBlocks: totalFocusBlocks,
             approximate: approximate,
-            effects: effects.filter { !state.hasAcknowledged($0.id) }
+            effects: effects.filter { !state.hasAcknowledged($0.id) },
+            pausedAt: walk.paused ? pausedAt : nil
         )
     }
 

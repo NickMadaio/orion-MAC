@@ -21,6 +21,9 @@ enum GatewayError: LocalizedError {
     case timedOut(Int)
     case unparseable
     case inFlight
+    /// Internal only: the gateway refused the thinking level. `ask` retries with
+    /// "off" and never shows this to the owner.
+    case thinkingRejected
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +37,8 @@ enum GatewayError: LocalizedError {
             return "The agent returned nothing this app could read."
         case .inFlight:
             return "A turn is already running in this session — give it a moment."
+        case .thinkingRejected:
+            return "The agent's model does not support the requested thinking level."
         }
     }
 }
@@ -100,7 +105,21 @@ enum GatewayClient {
     // MARK: One agent turn
 
     /// Blocking. Always call from a background queue.
-    static func ask(_ text: String, session: String = GatewayClient.sessionKey, model: String? = nil, replyTo: String? = nil, cancellation: TurnCancellation? = nil) throws -> GatewayReply {
+    ///
+    /// `sentAt` is when the owner's message was accepted (default: now), for the
+    /// click-to-spawn timing mark. If the gateway rejects the thinking level
+    /// ("is not supported for"), the turn is retried once with `--thinking off`.
+    static func ask(_ text: String, session: String = GatewayClient.sessionKey, model: String? = nil, replyTo: String? = nil, cancellation: TurnCancellation? = nil, sentAt: Date = Date()) throws -> GatewayReply {
+        let thinking = ThinkingPolicy.level(for: text, model: model, boostedUntil: boostedUntil(session))
+        do {
+            return try runOnce(text, session: session, model: model, replyTo: replyTo, cancellation: cancellation, thinking: thinking, sentAt: sentAt)
+        } catch GatewayError.thinkingRejected {
+            OrionLog.write("[thinking] \"\(thinking)\" rejected by the gateway — retrying once with off")
+            return try runOnce(text, session: session, model: model, replyTo: replyTo, cancellation: cancellation, thinking: "off", sentAt: sentAt, allowRetry: false)
+        }
+    }
+
+    private static func runOnce(_ text: String, session: String, model: String?, replyTo: String?, cancellation: TurnCancellation?, thinking: String, sentAt: Date, allowRetry: Bool = true) throws -> GatewayReply {
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
             throw GatewayError.missingBinary(binaryPath)
         }
@@ -116,7 +135,6 @@ enum GatewayClient {
         ]
         // Thinking only when the message needs it, or right after ORION struggled
         // (ThinkingPolicy, 2026-10-07). It was off for every turn without a picked model.
-        let thinking = ThinkingPolicy.level(for: text, model: model, boostedUntil: boostedUntil(session))
         if let model { process.arguments?.append(contentsOf: ["--model", model]) }
         process.arguments?.append(contentsOf: ["--thinking", thinking])
         // The CLI is a bash shim with a `/usr/bin/env` shebang. A GUI app
@@ -146,6 +164,7 @@ enum GatewayClient {
         } catch {
             throw GatewayError.failed(error.localizedDescription)
         }
+        let spawnedAt = Date()
 
         // Attached to this turn's cancellation, so a user cancel stops THIS
         // process and never a later turn's (REV3 #8). Detached on every exit.
@@ -197,7 +216,17 @@ enum GatewayClient {
         let outBox = DataBox()
         let outDrained = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .utility).async {
-            outBox.data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            // Same blocking-until-EOF behaviour as readDataToEndOfFile, in chunks
+            // so the first byte's arrival can be timestamped.
+            var collected = Data()
+            let handle = outPipe.fileHandleForReading
+            while true {
+                let chunk = handle.availableData
+                if chunk.isEmpty { break }
+                if outBox.firstByteAt == nil { outBox.firstByteAt = Date() }
+                collected.append(chunk)
+            }
+            outBox.data = collected
             outDrained.signal()
         }
 
@@ -219,6 +248,7 @@ enum GatewayClient {
         process.waitUntilExit()
         finished.value = true
         let outData = outBox.data
+        OrionLog.write(TurnMarks(sent: sentAt, spawned: spawnedAt, firstByte: outBox.firstByteAt, exited: Date()).logLine(session: session))
 
         let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
         let stdout = stripANSI(String(data: outData, encoding: .utf8) ?? "")
@@ -227,6 +257,9 @@ enum GatewayClient {
         if process.terminationStatus != 0 && stdout.isEmpty {
             let stderr = stripANSI(String(data: errorBox.data, encoding: .utf8) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            if allowRetry, ThinkingFallback.retryLevel(stderr: stderr, usedLevel: thinking) != nil {
+                throw GatewayError.thinkingRejected
+            }
             let lastLine = stderr.split(separator: "\n").last.map { String($0) }
             throw GatewayError.failed(lastLine ?? "exit \(process.terminationStatus)")
         }
@@ -417,6 +450,7 @@ enum GatewayClient {
 
 final class DataBox {
     var data = Data()
+    var firstByteAt: Date?
 }
 
 final class AtomicFlag {
