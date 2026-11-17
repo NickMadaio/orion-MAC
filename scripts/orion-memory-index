@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+/*
+ orion-memory-index — builds the CURATED memory index (E2, 2026-11-16).
+
+   orion-memory-index build [--out <file>] [--embedder ollama|stub] [--dry]
+   orion-memory-index stats [--out <file>]
+
+ Indexes only curated sources (remembered facts, USER.md lines, learned routines, qualified corrections, place aliases, the vault's
+ Projects/Areas/Resources/Concepts notes). Never session transcripts, eval/test/probe/sweep sessions, the task ledger or daily Episodes.
+ Reads the vault read-only. Writes ONE new file, default ~/.openclaw/agents/main/agent/orion-curated-index.json (env ORION_CURATED_INDEX);
+ the old openclaw-agent.sqlite index is never touched. --dry lists the chunk counts by kind without embedding anything.
+
+ Switching the nightly job (not done; one line in the cron job's argv, after `orion-daily ;`):
+   replace  `... /openclaw memory index`   with   `... scripts/orion-memory-index build`
+ (keep both until the new index has proved itself on the live route).
+*/
+import { statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { collectCurated } from "./lib/memory/curated-sources.mjs";
+import { buildIndex, readIndex, writeIndex } from "./lib/memory/curated-index.mjs";
+import { ollamaEmbedder, stubEmbedder } from "./lib/memory/embed.mjs";
+
+const [command, ...rest] = process.argv.slice(2);
+const flag = (name) => { const i = rest.indexOf(name); return i < 0 ? null : rest[i + 1]; };
+const dirs = {
+  vaultDir: process.env.ORION_BRAIN_VAULT || join(homedir(), "Documents/orionBrain"),
+  workspaceDir: process.env.ORION_WORKSPACE_DIR || join(homedir(), ".openclaw/workspace"),
+  controlledDir: process.env.ORION_CONTROLLED_DIR || join(homedir(), ".openclaw/orion-controlled"),
+};
+const out = flag("--out") || process.env.ORION_CURATED_INDEX || join(homedir(), ".openclaw/agents/main/agent/orion-curated-index.json");
+const fail = (m, code = 2) => { console.error(m); process.exit(code); };
+const byKind = (chunks) => chunks.reduce((acc, c) => ({ ...acc, [c.kind]: (acc[c.kind] ?? 0) + 1 }), {});
+
+try {
+  if (command === "build") {
+    const started = Date.now();
+    const chunks = collectCurated(dirs);
+    if (rest.includes("--dry")) { console.log(JSON.stringify({ chunks: chunks.length, byKind: byKind(chunks) })); process.exit(0); }
+    const name = flag("--embedder") ?? "ollama";
+    const embedder = name === "stub" ? stubEmbedder() : name === "ollama" ? ollamaEmbedder() : fail("--embedder is ollama or stub");
+    const index = await buildIndex(chunks, embedder);
+    const written = writeIndex(out, index);
+    console.log(JSON.stringify({ ...written, model: index.model, dim: index.dim, byKind: byKind(chunks), buildMs: Date.now() - started }));
+  } else if (command === "stats") {
+    const idx = readIndex(out);
+    if (!idx) fail(`no curated index at ${out}`, 1);
+    console.log(JSON.stringify({ path: out, bytes: statSync(out).size, chunks: idx.chunks.length, model: idx.model, dim: idx.dim, builtAt: idx.builtAt, byKind: byKind(idx.chunks) }));
+  } else fail("usage: orion-memory-index build [--out <file>] [--embedder ollama|stub] [--dry] | stats [--out <file>]");
+} catch (e) {
+  fail(`orion-memory-index: ${String(e?.message ?? e).slice(0, 300)}`, 1);
+}

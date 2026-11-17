@@ -24,11 +24,13 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
+import { summariseConversations } from "./lib/journal/conversations.mjs";
 
 const OPENCLAW = join(homedir(), ".openclaw");
 const LEDGER = join(OPENCLAW, "orion-controlled/task-ledger.jsonl");
 const MEMORY = join(OPENCLAW, "workspace/memory");
 const ARCHIVE = join(OPENCLAW, "orion-controlled/archive");
+const SESSIONS = process.env.ORION_SESSIONS_DIR || join(OPENCLAW, "agents/main/sessions");
 
 /*
  Days are LOCAL days, not UTC days.
@@ -84,8 +86,11 @@ async function ledgerRows() {
 }
 
 const rows = await ledgerRows();
-if (rows.length === 0) {
-  console.log(`${day}: nothing in the ledger, no summary written`);
+// The ledger only holds taskgraph runs, so a day of plain conversation left it empty and the old early exit wrote NO journal from
+// 2026-11-05 on. Conversations are now a section of their own (counts and topics by code, his "remember" facts verbatim).
+const conversations = summariseConversations({ sessionsDir: SESSIONS, day });
+if (rows.length === 0 && conversations.turns === 0) {
+  console.log(`${day}: nothing in the ledger or in conversations, no summary written`);
   process.exit(0);
 }
 
@@ -115,7 +120,9 @@ for (const row of rows) {
 
 const ranked = [...actions].sort((a, b) => b[1] - a[1]);
 const lines = [
-  `${rows.length} request${rows.length === 1 ? "" : "s"}, ${verified} action${verified === 1 ? "" : "s"} verified${rejected > 0 ? `, ${rejected} refused` : ""}.`,
+  rows.length > 0
+    ? `${rows.length} request${rows.length === 1 ? "" : "s"}, ${verified} action${verified === 1 ? "" : "s"} verified${rejected > 0 ? `, ${rejected} refused` : ""}.`
+    : "No task-graph actions in the ledger today.",
   "",
 ];
 
@@ -163,6 +170,8 @@ if (failures.length > 0) {
 const BEGIN = "<!-- orion-daily:begin — generated from the action ledger; edits inside this block are overwritten -->";
 const END = "<!-- orion-daily:end -->";
 
+lines.push(...conversations.lines);
+
 const block = [BEGIN, "", ...lines, END].join("\n");
 
 function spliceBlock(existing, day) {
@@ -187,10 +196,10 @@ const preserved = existing.replace(BEGIN, "").replace(END, "").trim().length > 0
 
 await writeFile(target, spliceBlock(existing, day));
 console.log(
-  `${day}: ${rows.length} requests -> ${target}${preserved ? " (existing notes preserved)" : ""}`,
+  `${day}: ${rows.length} requests, ${conversations.turns} conversation turns -> ${target}${preserved ? " (existing notes preserved)" : ""}`,
 );
 
-if (today) process.exit(0);
+if (today || rows.length === 0) process.exit(0);
 
 // Compress the raw rows for the day, then drop them from the live ledger.
 // The summary is what gets recalled; the rows are kept in case a specific

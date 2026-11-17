@@ -1,0 +1,152 @@
+[
+ {
+  "id": "f01",
+  "kind": "remembered",
+  "date": "2026-01-01",
+  "text": "Dara's flat is above the bakery on Quill Street and the door code changes every month."
+ },
+ {
+  "id": "f02",
+  "kind": "remembered",
+  "date": "2026-01-02",
+  "text": "The cat is called Biscuit and she is allergic to chicken-flavoured treats."
+ },
+ {
+  "id": "f03",
+  "kind": "remembered",
+  "date": "2026-01-03",
+  "text": "Passport renewal for the fictional Marrow Islands is due before the 14th of March."
+ },
+ {
+  "id": "f04",
+  "kind": "routine",
+  "date": "2026-01-04",
+  "text": "Swims at the Harbourside pool on Tuesday and Thursday mornings around 7:15."
+ },
+ {
+  "id": "f05",
+  "kind": "profile",
+  "date": "2026-01-05",
+  "text": "Prefers tea with oat milk and no sugar, never coffee after 3 PM."
+ },
+ {
+  "id": "f06",
+  "kind": "remembered",
+  "date": "2026-01-06",
+  "text": "The group project for HIST3050 is about medieval salt trade routes and is led by Wren."
+ },
+ {
+  "id": "f07",
+  "kind": "correction",
+  "date": "2026-01-07",
+  "text": "Do not call the library at weekends, it is closed; check the online catalogue instead."
+ },
+ {
+  "id": "f08",
+  "kind": "place",
+  "date": "2026-01-08",
+  "text": "The Anvil Cafe is also called the forge by friends, on Copper Row near the tram stop."
+ },
+ {
+  "id": "f09",
+  "kind": "remembered",
+  "date": "2026-01-09",
+  "text": "Bike lock combination was changed to a four-digit date of the first moon landing."
+ },
+ {
+  "id": "f10",
+  "kind": "routine",
+  "date": "2026-01-10",
+  "text": "Usually walks home along the canal on Fridays after the pottery class."
+ },
+ {
+  "id": "f11",
+  "kind": "profile",
+  "date": "2026-01-11",
+  "text": "Wears size ten running shoes and likes the grey trail pair for wet days."
+ },
+ {
+  "id": "f12",
+  "kind": "remembered",
+  "date": "2026-01-12",
+  "text": "Brother Tobias visits on the second weekend of December and sleeps on the sofa bed."
+ },
+ {
+  "id": "f13",
+  "kind": "remembered",
+  "date": "2026-01-13",
+  "text": "The landlord, Mr Okonkwo-Reyes, wants rent paid by the 3rd via bank transfer."
+ },
+ {
+  "id": "f14",
+  "kind": "correction",
+  "date": "2026-01-14",
+  "text": "When planning study blocks, never put them right after a late shift; leave a two hour gap."
+ },
+ {
+  "id": "f15",
+  "kind": "place",
+  "date": "2026-01-15",
+  "text": "The Hollow is the nickname for the basement study room in the Granary building."
+ },
+ {
+  "id": "f16",
+  "kind": "remembered",
+  "date": "2026-01-16",
+  "text": "Allergic to hazelnuts, carries the blue pen injector in the left jacket pocket."
+ },
+ {
+  "id": "f17",
+  "kind": "profile",
+  "date": "2026-01-17",
+  "text": "Favourite album for focus work is a slow instrumental piano record by Imre Valk."
+ },
+ {
+  "id": "f18",
+  "kind": "routine",
+  "date": "2026-01-18",
+  "text": "Sunday evenings are for meal prep: rice, roasted peppers and lentil soup for the week."
+ },
+ {
+  "id": "f19",
+  "kind": "remembered",
+  "date": "2026-01-19",
+  "text": "The cert exam for the cloud course is booked at the Lindgren test centre on the 22nd."
+ },
+ {
+  "id": "f20",
+  "kind": "remembered",
+  "date": "2026-01-20",
+  "text": "Grandmother Ilse's birthday is the 9th of May; she likes lilies, not roses."
+ },
+ {
+  "id": "f21",
+  "kind": "correction",
+  "date": "2026-01-21",
+  "text": "Say times as 8:11 PM in the evening, never 24-hour format."
+ },
+ {
+  "id": "f22",
+  "kind": "place",
+  "date": "2026-01-22",
+  "text": "Gym is Fenwick Hall, the second floor weights room, locker number 41."
+ },
+ {
+  "id": "f23",
+  "kind": "remembered",
+  "date": "2026-01-23",
+  "text": "Laptop charger is the 96 watt one; the spare lives in the green drawer under the printer."
+ },
+ {
+  "id": "f24",
+  "kind": "routine",
+  "date": "2026-01-24",
+  "text": "Reads a chapter of a novel before bed, currently a mystery set in a lighthouse."
+ },
+ {
+  "id": "f25",
+  "kind": "profile",
+  "date": "2026-01-25",
+  "text": "Learning Portuguese with a ten minute lesson every day on the phone."
+ }
+]

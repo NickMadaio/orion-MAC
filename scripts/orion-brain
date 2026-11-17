@@ -7,6 +7,8 @@
  tools never reached ORION; this wraps Basic Memory's own CLI instead.
 
    orion-brain search "<words>"                 notes and facts that match
+   orion-brain recall "<words>" [--json]        hybrid recall (keyword + embedding similarity) over the CURATED index; top 5 with sources.
+                                                 Falls back to keyword-only, with a note, when the model or index is unavailable. Never fails.
    orion-brain read "<note title>"              one note
    orion-brain context "<note title>"           a note plus the notes linked to it
    orion-brain learn [--own] "<note title>" "<category>" "<fact>"
@@ -45,6 +47,10 @@ import { dirname } from "node:path";
 import { loadCourseVault, applyCourseRefresh } from "./lib/connect/course-vault.mjs";
 import { planCourseRefresh, excludedCourses, previewCourseRefresh } from "./lib/connect/course-notes.mjs";
 import { canvasId } from "./lib/connect/canvas.mjs";
+import { ollamaEmbedder } from "./lib/memory/embed.mjs";
+import { recall, renderRecall } from "./lib/memory/recall.mjs";
+import { searchGraph } from "./lib/brain/graph-search.mjs";
+import { searchVault } from "./lib/brain/vault-search.mjs";
 
 const BM = join(homedir(), ".local/bin/basic-memory");
 const [command, ...rest] = process.argv.slice(2);
@@ -110,6 +116,19 @@ try {
     const controlled = process.env.ORION_CONTROLLED_DIR || join(homedir(), ".openclaw/orion-controlled");
     const vaultDir = process.env.ORION_BRAIN_VAULT || join(homedir(), "Documents/orionBrain");
     console.log(await brainSearch(q, { graph: loadGraph(controlled), vaultDir, ranked: rankedSearch }));
+  } else if (command === "recall") {
+    const asJson = rest.includes("--json");
+    const q = clean(rest.filter((w) => w !== "--json").join(" "), 200); if (!q) fail('usage: orion-brain recall "<words>" [--json]');
+    const d = dirs();
+    const graph = loadGraph(d.controlledDir);
+    // Keyword side: the curated chunks themselves (inside recall) plus the knowledge graph; the plain vault text search only when there is no index.
+    const extraKeyword = (query, hasIndex) => [
+      ...searchGraph(graph, query).map((r) => ({ id: `graph:${r.title}`, text: `${r.title}: ${r.facts.join("; ")}`, source: "knowledge-graph", date: "", kind: "graph" })),
+      ...(hasIndex ? [] : searchVault(d.vaultDir, query).map((r) => ({ id: `vault:${r.file_path}`, text: r.excerpt, source: `vault/${r.file_path}`, date: "", kind: "note" }))),
+    ];
+    const indexPath = process.env.ORION_CURATED_INDEX || join(homedir(), ".openclaw/agents/main/agent/orion-curated-index.json");
+    const out = await recall(q, { indexPath, embedder: ollamaEmbedder({ timeoutMs: 3000 }), n: 5, queryTimeoutMs: 3000, extraKeyword });
+    console.log(asJson ? JSON.stringify(out) : renderRecall(out));
   } else if (command === "read" || command === "context") {
     const title = clean(rest[0], 120); if (!title) fail(`usage: orion-brain ${command} "<note title>"`);
     if (badTitle(title)) fail(`orion-brain: "${title}" is not a note title (no leading "-", "/" or ".."); nothing was read.`);
@@ -175,7 +194,7 @@ try {
   } else if (command === "recent") {
     process.stdout.write(bm(bmArgs.recent()));
   } else {
-    fail("usage: orion-brain search|read|context|learn|recent|forget|mine|unlearn|edit|links|profile|canvas-courses|canvas-refresh (see the header)");
+    fail("usage: orion-brain search|recall|read|context|learn|recent|forget|mine|unlearn|edit|links|profile|canvas-courses|canvas-refresh (see the header)");
   }
 } catch (e) {
   fail(`orion-brain: ${String(e.stderr || e.message).slice(0, 300)}`, 1);

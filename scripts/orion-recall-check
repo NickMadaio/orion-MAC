@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+/*
+ orion-recall-check — does curated recall find the right fact?
+
+   orion-recall-check <folder> [--embedder stub|ollama] [--json]
+        folder holds facts.json and questions.json; the index is built in memory from the facts
+   orion-recall-check --index <file> --questions <questions.json> [--embedder ollama] [--json]
+        questions against an already built curated index (questions use expectText when they have no fact id)
+
+ Reports hit@1 and hit@5 for the hybrid search and for the keyword and embedding halves alone. Default embedder: stub (no Ollama).
+ Exit 0 when it ran; the numbers are the result.
+*/
+import { readFileSync } from "node:fs";
+import { ollamaEmbedder, stubEmbedder } from "./lib/memory/embed.mjs";
+import { readIndex } from "./lib/memory/curated-index.mjs";
+import { loadFolder, runRecallCheck } from "./lib/memory/recall-check.mjs";
+
+const args = process.argv.slice(2);
+const flag = (name) => { const i = args.indexOf(name); return i < 0 ? null : args.splice(i, 2)[1]; };
+const json = args.includes("--json") && args.splice(args.indexOf("--json"), 1);
+const embedderName = flag("--embedder") ?? "stub";
+const indexPath = flag("--index");
+const questionsPath = flag("--questions");
+const folder = args[0];
+const fail = (m) => { console.error(m); process.exit(2); };
+
+try {
+  const embedder = embedderName === "ollama" ? ollamaEmbedder() : embedderName === "stub" ? stubEmbedder() : fail("--embedder is stub or ollama");
+  let input;
+  if (indexPath) {
+    const index = readIndex(indexPath);
+    if (!index || !questionsPath) fail("usage: orion-recall-check --index <file> --questions <questions.json> (the index must exist)");
+    input = { index, questions: JSON.parse(readFileSync(questionsPath, "utf8")) };
+  } else {
+    if (!folder) fail("usage: orion-recall-check <folder> [--embedder stub|ollama] [--json]");
+    input = loadFolder(folder);
+  }
+  const result = await runRecallCheck({ ...input, embedder });
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else {
+    const f = (r) => `hit@1 ${(r.hit1 * 100).toFixed(0)}%  hit@5 ${(r.hit5 * 100).toFixed(0)}%`;
+    console.log(`${result.questions} questions over ${result.chunks} chunks (${result.embedder})\n  hybrid     ${f(result.hybrid)}\n  keyword    ${f(result.keywordOnly)}\n  embedding  ${f(result.embeddingOnly)}`);
+    for (const m of result.misses) console.log(`  miss: "${m.q}" (wanted ${m.expect})`);
+  }
+} catch (e) {
+  fail(`orion-recall-check: ${String(e?.message ?? e).slice(0, 300)}`);
+}

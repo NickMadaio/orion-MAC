@@ -1,0 +1,102 @@
+[
+ {
+  "q": "What is my cat's name and what can't she eat?",
+  "expect": "f02"
+ },
+ {
+  "q": "when is the passport thing due",
+  "expect": "f03"
+ },
+ {
+  "q": "which mornings do I go swimming",
+  "expect": "f04"
+ },
+ {
+  "q": "how do I take my tea",
+  "expect": "f05"
+ },
+ {
+  "q": "who leads the salt trade group project",
+  "expect": "f06"
+ },
+ {
+  "q": "can I phone the library on a Saturday",
+  "expect": "f07"
+ },
+ {
+  "q": "where is the forge cafe",
+  "expect": "f08"
+ },
+ {
+  "q": "what's the code for my bike lock",
+  "expect": "f09"
+ },
+ {
+  "q": "what do I do after pottery on Fridays",
+  "expect": "f10"
+ },
+ {
+  "q": "what shoe size am I",
+  "expect": "f11"
+ },
+ {
+  "q": "when does Tobias come to stay",
+  "expect": "f12"
+ },
+ {
+  "q": "when is rent due and who is the landlord",
+  "expect": "f13"
+ },
+ {
+  "q": "how much gap should I leave after a late shift when planning study",
+  "expect": "f14"
+ },
+ {
+  "q": "what is the Hollow",
+  "expect": "f15"
+ },
+ {
+  "q": "what am I allergic to and where is the injector",
+  "expect": "f16"
+ },
+ {
+  "q": "what music do I put on to focus",
+  "expect": "f17"
+ },
+ {
+  "q": "what do I cook on Sunday nights",
+  "expect": "f18"
+ },
+ {
+  "q": "where and when is my cloud cert exam",
+  "expect": "f19"
+ },
+ {
+  "q": "what flowers does my grandmother like",
+  "expect": "f20"
+ },
+ {
+  "q": "how should you format the time of day",
+  "expect": "f21"
+ },
+ {
+  "q": "which locker do I use at the gym",
+  "expect": "f22"
+ },
+ {
+  "q": "where is the spare laptop charger",
+  "expect": "f23"
+ },
+ {
+  "q": "what book am I reading at night",
+  "expect": "f24"
+ },
+ {
+  "q": "what language am I studying on my phone",
+  "expect": "f25"
+ },
+ {
+  "q": "Dara's door code",
+  "expect": "f01"
+ }
+]
